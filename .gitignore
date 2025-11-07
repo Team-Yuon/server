@@ -1,0 +1,24 @@
+# Build artifacts
+bin/
+build/
+dist/
+*.o
+*.a
+*.so
+*.exe
+*.exe~
+*.dll
+*.dylib
+*.out
+*.test
+
+vendor/
+
+coverage.out
+
+.env
+.env.*
+.DS_Store
+.idea/
+.vscode/
+*.swp
