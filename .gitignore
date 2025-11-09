@@ -12,13 +12,41 @@ dist/
 *.out
 *.test
 
+# Dependencies (keep vendor if you want to commit it)
 vendor/
 
+# Test coverage
 coverage.out
+*.cover
+*.coverprofile
 
+# Environment files
 .env
-.env.*
+.env.local
+.env.*.local
+
+# IDE
 .DS_Store
 .idea/
 .vscode/
 *.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# OS specific
+Thumbs.db
+.Trash-*
