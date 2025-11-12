@@ -12,6 +12,12 @@ import (
 
 	"yuon/configuration"
 	httpserver "yuon/internal/http"
+	"yuon/internal/rag/llm"
+	"yuon/internal/rag/search"
+	"yuon/internal/rag/service"
+	"yuon/internal/rag/vectorstore"
+	"yuon/package/logger"
+	"yuon/package/validator"
 )
 
 func main() {
@@ -23,9 +29,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	logger.New(cfg.App.Environment)
+	validator.Init()
+
 	logConfig(cfg)
 
+	// RAG 시스템 초기화
+	chatbotSvc, cleanup, err := initializeRAG(cfg)
+	if err != nil {
+		slog.Error("RAG 시스템 초기화 실패", "error", err)
+		os.Exit(1)
+	}
+	defer cleanup()
+
 	router := httpserver.NewRouter(cfg)
+	if chatbotSvc != nil {
+		router.SetChatbotService(chatbotSvc)
+		slog.Info("RAG 챗봇 서비스 활성화")
+	}
 	router.SetupRoutes()
 
 	srv := createServer(cfg, router)
@@ -80,6 +101,38 @@ func startServer(srv *http.Server, cfg *configuration.Config) {
 		slog.Error("서버 실행 오류", "error", err)
 		os.Exit(1)
 	}
+}
+
+func initializeRAG(cfg *configuration.Config) (*service.ChatbotService, func(), error) {
+	// OpenAI 클라이언트
+	llmClient := llm.NewOpenAIClient(&cfg.OpenAI)
+	slog.Info("OpenAI 클라이언트 초기화 완료")
+
+	// Qdrant 클라이언트
+	qdrantClient, err := vectorstore.NewQdrantClient(&cfg.Qdrant)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Qdrant 초기화 실패: %w", err)
+	}
+	slog.Info("Qdrant 클라이언트 초기화 완료", "url", cfg.Qdrant.URL)
+
+	// OpenSearch 클라이언트
+	opensearchClient, err := search.NewOpenSearchClient(&cfg.OpenSearch)
+	if err != nil {
+		return nil, nil, fmt.Errorf("OpenSearch 초기화 실패: %w", err)
+	}
+	slog.Info("OpenSearch 클라이언트 초기화 완료", "url", cfg.OpenSearch.URL)
+
+	// 챗봇 서비스
+	chatbotSvc := service.NewChatbotService(llmClient, qdrantClient, opensearchClient)
+
+	cleanup := func() {
+		if qdrantClient != nil {
+			qdrantClient.Close()
+			slog.Info("Qdrant 연결 종료")
+		}
+	}
+
+	return chatbotSvc, cleanup, nil
 }
 
 func waitForShutdown(srv *http.Server) {

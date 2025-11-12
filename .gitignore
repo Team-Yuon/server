@@ -42,6 +42,9 @@ tmp/
 temp/
 *.tmp
 
+# Air (hot reload)
+build-errors.log
+
 # Database
 *.db
 *.sqlite

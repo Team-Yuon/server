@@ -7,9 +7,12 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	App      AppConfig
+	Server     ServerConfig
+	Database   DatabaseConfig
+	App        AppConfig
+	OpenAI     OpenAIConfig
+	Qdrant     QdrantConfig
+	OpenSearch OpenSearchConfig
 }
 
 type ServerConfig struct {
@@ -31,6 +34,28 @@ type AppConfig struct {
 	Name        string `envconfig:"APP_NAME" default:"YUON"`
 	Version     string `envconfig:"APP_VERSION" default:"1.0.0"`
 	Environment string `envconfig:"APP_ENV" default:"development"`
+}
+
+type OpenAIConfig struct {
+	APIKey         string  `envconfig:"OPENAI_API_KEY"`
+	Model          string  `envconfig:"OPENAI_MODEL" default:"gpt-4o-mini"`
+	EmbeddingModel string  `envconfig:"OPENAI_EMBEDDING_MODEL" default:"text-embedding-3-small"`
+	MaxTokens      int     `envconfig:"OPENAI_MAX_TOKENS" default:"1000"`
+	Temperature    float32 `envconfig:"OPENAI_TEMPERATURE" default:"0.7"`
+}
+
+type QdrantConfig struct {
+	URL        string `envconfig:"QDRANT_URL" default:"http://localhost:6333"`
+	APIKey     string `envconfig:"QDRANT_API_KEY"`
+	Collection string `envconfig:"QDRANT_COLLECTION" default:"documents"`
+	VectorSize int    `envconfig:"QDRANT_VECTOR_SIZE" default:"1536"`
+}
+
+type OpenSearchConfig struct {
+	URL      string `envconfig:"OPENSEARCH_URL" default:"http://localhost:9200"`
+	Username string `envconfig:"OPENSEARCH_USERNAME" default:"admin"`
+	Password string `envconfig:"OPENSEARCH_PASSWORD" default:"admin"`
+	Index    string `envconfig:"OPENSEARCH_INDEX" default:"documents"`
 }
 
 func Load() (*Config, error) {
