@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"crypto/subtle"
 	"errors"
 	"sync"
 	"time"
@@ -18,80 +17,92 @@ type User struct {
 	Role         string
 }
 
-type SignupToken struct {
-	Token string
-	Role  string
-	Used  bool
-}
-
 type Manager struct {
-	rootSecret string
-	jwtSecret  []byte
+	jwtSecret []byte
 
-	mu           sync.RWMutex
-	users        map[string]*User
-	emailToID    map[string]string
-	signupTokens map[string]*SignupToken
+	mu        sync.RWMutex
+	users     map[string]*User
+	emailToID map[string]string
 }
 
-func NewManager(rootSecret, jwtSecret string) *Manager {
+func NewManager(jwtSecret string) *Manager {
 	return &Manager{
-		rootSecret:   rootSecret,
-		jwtSecret:    []byte(jwtSecret),
-		users:        make(map[string]*User),
-		emailToID:    make(map[string]string),
-		signupTokens: make(map[string]*SignupToken),
+		jwtSecret: []byte(jwtSecret),
+		users:     make(map[string]*User),
+		emailToID: make(map[string]string),
 	}
 }
 
-func (m *Manager) IssueSignupToken(rootPassword, role string) (string, error) {
-	if err := m.authenticateRoot(rootPassword); err != nil {
-		return "", err
-	}
-	if role == "" {
-		role = "user"
-	}
-	token := uuid.New().String()
-	m.mu.Lock()
-	m.signupTokens[token] = &SignupToken{Token: token, Role: role}
-	m.mu.Unlock()
-	return token, nil
-}
-
-func (m *Manager) Signup(signupToken, email, password string) (*User, error) {
-	if signupToken == "" || email == "" || password == "" {
-		return nil, errors.New("token, email, password are required")
+func (m *Manager) EnsureRootUser(email, password string) error {
+	if email == "" || password == "" {
+		return errors.New("root email/password required")
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	token, ok := m.signupTokens[signupToken]
-	if !ok || token.Used {
-		return nil, errors.New("invalid or expired signup token")
-	}
-
-	if _, exists := m.emailToID[email]; exists {
-		return nil, errors.New("email already registered")
-	}
-
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, err
+		return err
+	}
+
+	if id, exists := m.emailToID[email]; exists {
+		if user, ok := m.users[id]; ok {
+			user.PasswordHash = hash
+			user.Role = "root"
+			return nil
+		}
 	}
 
 	user := &User{
 		ID:           uuid.New().String(),
 		Email:        email,
 		PasswordHash: hash,
-		Role:         token.Role,
+		Role:         "root",
 	}
 
 	m.users[user.ID] = user
 	m.emailToID[email] = user.ID
-	token.Used = true
+	return nil
+}
 
-	return user, nil
+func (m *Manager) Signup(email, password, role string) (string, *User, error) {
+	if email == "" || password == "" {
+		return "", nil, errors.New("email and password are required")
+	}
+
+	if role == "" {
+		role = "user"
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.emailToID[email]; exists {
+		return "", nil, errors.New("email already registered")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", nil, err
+	}
+
+	user := &User{
+		ID:           uuid.New().String(),
+		Email:        email,
+		PasswordHash: hash,
+		Role:         role,
+	}
+
+	m.users[user.ID] = user
+	m.emailToID[email] = user.ID
+
+	token, err := m.generateJWT(user)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return token, user, nil
 }
 
 func (m *Manager) Login(email, password string) (string, *User, error) {
@@ -157,14 +168,4 @@ func (m *Manager) generateJWT(user *User) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(m.jwtSecret)
-}
-
-func (m *Manager) authenticateRoot(password string) error {
-	if m.rootSecret == "" {
-		return errors.New("root secret is not configured")
-	}
-	if subtle.ConstantTimeCompare([]byte(password), []byte(m.rootSecret)) != 1 {
-		return errors.New("invalid root password")
-	}
-	return nil
 }

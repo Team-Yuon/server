@@ -52,7 +52,11 @@ func main() {
 	}
 	defer cleanup()
 
-	authManager := auth.NewManager(cfg.Auth.RootPassword, cfg.Auth.JWTSecret)
+	authManager := auth.NewManager(cfg.Auth.JWTSecret)
+	if err := authManager.EnsureRootUser("root@yuon.root", cfg.Auth.RootPassword); err != nil {
+		slog.Error("루트 사용자 초기화 실패", "error", err)
+		os.Exit(1)
+	}
 
 	router := httpserver.NewRouter(cfg, authManager)
 	if chatbotSvc != nil {

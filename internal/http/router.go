@@ -56,7 +56,6 @@ func (r *Router) SetupRoutes() {
 		v1.GET("/system/health", r.healthCheck)
 
 		authHandler := NewAuthHandler(r.authManager)
-		v1.POST("/auth/signup-tokens", authHandler.IssueSignupToken)
 		v1.POST("/auth/signup", authHandler.Signup)
 		v1.POST("/auth/login", authHandler.Login)
 
