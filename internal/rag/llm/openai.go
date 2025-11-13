@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sashabaranov/go-openai"
 	"yuon/configuration"
 	"yuon/internal/rag"
+
+	"github.com/sashabaranov/go-openai"
 )
 
 type OpenAIClient struct {
@@ -81,9 +82,8 @@ func (c *OpenAIClient) buildSystemPrompt(documents []rag.Document) string {
 
 다음 규칙을 따르세요:
 1. 제공된 문서의 내용을 바탕으로 답변하세요
-2. 문서에 없는 내용은 추측하지 마세요
-3. 답변할 수 없다면 솔직하게 "제공된 정보로는 답변하기 어렵습니다"라고 말하세요
-4. 가능한 한 구체적이고 명확하게 답변하세요
+2. 답변할 수 없다면 솔직하게 "제공된 정보로는 답변하기 어렵습니다"라고 말하세요
+3. 가능한 한 구체적이고 명확하게 답변하세요
 
 참고 문서:
 `

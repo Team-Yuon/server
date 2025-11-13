@@ -174,3 +174,107 @@ func (s *ChatbotService) BulkAddDocuments(ctx context.Context, docs []rag.Docume
 	slog.Info("벌크 문서 추가 완료", "count", len(docs))
 	return nil
 }
+
+func (s *ChatbotService) ListDocuments(ctx context.Context, params *rag.DocumentListParams) (*rag.DocumentListResult, error) {
+	return s.fullText.ListDocuments(ctx, params)
+}
+
+func (s *ChatbotService) GetDocument(ctx context.Context, id string) (*rag.Document, error) {
+	return s.fullText.GetDocument(ctx, id)
+}
+
+func (s *ChatbotService) UpdateDocument(ctx context.Context, doc rag.Document) error {
+	if err := s.fullText.UpdateDocument(ctx, doc); err != nil {
+		return fmt.Errorf("OpenSearch 문서 업데이트 실패: %w", err)
+	}
+
+	vector, err := s.llm.GenerateEmbedding(ctx, doc.Content)
+	if err != nil {
+		return fmt.Errorf("임베딩 생성 실패: %w", err)
+	}
+
+	if err := s.vectorStore.AddDocument(ctx, doc, vector); err != nil {
+		return fmt.Errorf("Qdrant 문서 업데이트 실패: %w", err)
+	}
+
+	return nil
+}
+
+func (s *ChatbotService) DeleteDocument(ctx context.Context, id string) error {
+	if err := s.fullText.DeleteDocument(ctx, id); err != nil {
+		return fmt.Errorf("OpenSearch 문서 삭제 실패: %w", err)
+	}
+
+	if err := s.vectorStore.DeleteDocument(ctx, id); err != nil {
+		return fmt.Errorf("Qdrant 문서 삭제 실패: %w", err)
+	}
+
+	return nil
+}
+
+func (s *ChatbotService) ReindexDocuments(ctx context.Context, ids []string) (*rag.ReindexResult, error) {
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("재색인할 문서 ID가 없습니다")
+	}
+
+	docs, err := s.fullText.FetchDocuments(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("문서 조회 실패: %w", err)
+	}
+
+	result := &rag.ReindexResult{
+		Requested: len(ids),
+	}
+
+	existing := make(map[string]rag.Document)
+	for _, doc := range docs {
+		existing[doc.ID] = doc
+	}
+
+	for _, id := range ids {
+		doc, ok := existing[id]
+		if !ok {
+			result.Failed = append(result.Failed, id)
+			continue
+		}
+
+		vector, err := s.llm.GenerateEmbedding(ctx, doc.Content)
+		if err != nil {
+			slog.Error("임베딩 생성 실패", "id", doc.ID, "error", err)
+			result.Failed = append(result.Failed, doc.ID)
+			continue
+		}
+
+		if err := s.vectorStore.AddDocument(ctx, doc, vector); err != nil {
+			slog.Error("Qdrant 재색인 실패", "id", doc.ID, "error", err)
+			result.Failed = append(result.Failed, doc.ID)
+			continue
+		}
+
+		result.Reindexed++
+	}
+
+	return result, nil
+}
+
+func (s *ChatbotService) GetDocumentStats(ctx context.Context) (*rag.DocumentStats, error) {
+	return s.fullText.GetStats(ctx)
+}
+
+func (s *ChatbotService) FetchDocumentVector(ctx context.Context, id string, withPayload bool) (*rag.DocumentVector, error) {
+	return s.vectorStore.GetDocumentVector(ctx, id, withPayload)
+}
+
+func (s *ChatbotService) QueryDocumentVectors(ctx context.Context, req *rag.VectorQueryRequest) (*rag.VectorQueryResponse, error) {
+	vectors, hasMore, nextOffset, err := s.vectorStore.QueryDocumentVectors(ctx, req.DocumentIDs, req.Limit, req.WithPayload, req.Offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rag.VectorQueryResponse{
+		Vectors:    vectors,
+		Count:      len(vectors),
+		HasMore:    hasMore,
+		NextOffset: nextOffset,
+	}, nil
+}

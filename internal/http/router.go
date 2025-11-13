@@ -46,6 +46,8 @@ func (r *Router) SetupRoutes() {
 		// 챗봇 관련 라우트
 		if r.chatbotService != nil {
 			chatbot := NewChatbotHandler(r.chatbotService)
+			documents := NewDocumentHandler(r.chatbotService)
+
 			chatGroup := v1.Group("/chat")
 			{
 				chatGroup.POST("", chatbot.Chat)
@@ -55,8 +57,17 @@ func (r *Router) SetupRoutes() {
 			// 문서 관리
 			docGroup := v1.Group("/documents")
 			{
-				docGroup.POST("", chatbot.AddDocument)
-				docGroup.POST("/bulk", chatbot.BulkAddDocuments)
+				docGroup.GET("", documents.ListDocuments)
+				docGroup.GET("/stats", documents.GetStats)
+				docGroup.POST("", documents.CreateDocument)
+				docGroup.POST("/bulk-ingest", documents.BulkIngestDocuments)
+				docGroup.POST("/bulk", documents.BulkIngestDocuments)
+				docGroup.POST("/reindex", documents.ReindexDocuments)
+				docGroup.POST("/vectors/query", documents.QueryDocumentVectors)
+				docGroup.GET("/:id/vector", documents.FetchDocumentVector)
+				docGroup.GET("/:id", documents.GetDocument)
+				docGroup.PUT("/:id", documents.UpdateDocument)
+				docGroup.DELETE("/:id", documents.DeleteDocument)
 			}
 		}
 	}
