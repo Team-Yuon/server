@@ -1,9 +1,10 @@
 package http
 
 import (
-	"github.com/gin-gonic/gin"
 	"yuon/configuration"
 	"yuon/internal/rag/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Router struct {
@@ -39,36 +40,37 @@ func setGinMode(mode string) {
 }
 
 func (r *Router) SetupRoutes() {
+	if r.chatbotService == nil {
+		panic("chatbot service is not configured; call SetChatbotService before SetupRoutes")
+	}
+
 	v1 := r.engine.Group("/api/v1")
 	{
 		v1.GET("/health", r.healthCheck)
+		v1.GET("/system/health", r.healthCheck)
 
-		// 챗봇 관련 라우트
-		if r.chatbotService != nil {
-			chatbot := NewChatbotHandler(r.chatbotService)
-			documents := NewDocumentHandler(r.chatbotService)
+		chatbot := NewChatbotHandler(r.chatbotService)
+		documents := NewDocumentHandler(r.chatbotService)
 
-			chatGroup := v1.Group("/chat")
-			{
-				chatGroup.POST("", chatbot.Chat)
-				chatGroup.POST("/simple", chatbot.SimpleChat)
-			}
+		chatGroup := v1.Group("/chat")
+		{
+			chatGroup.POST("", chatbot.Chat)
+			chatGroup.POST("/simple", chatbot.SimpleChat)
+		}
 
-			// 문서 관리
-			docGroup := v1.Group("/documents")
-			{
-				docGroup.GET("", documents.ListDocuments)
-				docGroup.GET("/stats", documents.GetStats)
-				docGroup.POST("", documents.CreateDocument)
-				docGroup.POST("/bulk-ingest", documents.BulkIngestDocuments)
-				docGroup.POST("/bulk", documents.BulkIngestDocuments)
-				docGroup.POST("/reindex", documents.ReindexDocuments)
-				docGroup.POST("/vectors/query", documents.QueryDocumentVectors)
-				docGroup.GET("/:id/vector", documents.FetchDocumentVector)
-				docGroup.GET("/:id", documents.GetDocument)
-				docGroup.PUT("/:id", documents.UpdateDocument)
-				docGroup.DELETE("/:id", documents.DeleteDocument)
-			}
+		docGroup := v1.Group("/documents")
+		{
+			docGroup.GET("", documents.ListDocuments)
+			docGroup.GET("/stats", documents.GetStats)
+			docGroup.POST("", documents.CreateDocument)
+			docGroup.POST("/bulk-ingest", documents.BulkIngestDocuments)
+			docGroup.POST("/bulk", documents.BulkIngestDocuments)
+			docGroup.POST("/reindex", documents.ReindexDocuments)
+			docGroup.POST("/vectors/query", documents.QueryDocumentVectors)
+			docGroup.GET("/:id/vector", documents.FetchDocumentVector)
+			docGroup.GET("/:id", documents.GetDocument)
+			docGroup.PUT("/:id", documents.UpdateDocument)
+			docGroup.DELETE("/:id", documents.DeleteDocument)
 		}
 	}
 }
