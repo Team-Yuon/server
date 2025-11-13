@@ -1,0 +1,354 @@
+openapi: 3.0.3
+info:
+  title: YUON API
+  version: "1.0"
+servers:
+  - url: https://yuon-api.dsmhs.kr/api/v1
+  - url: http://localhost:8080/api/v1
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        content:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: {}
+    DocumentListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            documents:
+              type: array
+              items:
+                $ref: '#/components/schemas/Document'
+            total:
+              type: integer
+            page:
+              type: integer
+            pageSize:
+              type: integer
+            hasNext:
+              type: boolean
+    VectorProjectionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            vectors:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  x:
+                    type: number
+                  y:
+                    type: number
+                  content:
+                    type: string
+                  metadata:
+                    type: object
+                  magnitude:
+                    type: number
+            count:
+              type: integer
+            hasMore:
+              type: boolean
+            nextOffset:
+              type: string
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Server is healthy
+  /system/health:
+    get:
+      summary: System health check
+      responses:
+        '200':
+          description: Server is healthy
+  /auth/signup:
+    post:
+      summary: User signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                  format: password
+                role:
+                  type: string
+                  default: user
+      responses:
+        '200':
+          description: Signup succeeded
+        '400':
+          description: Invalid request
+  /auth/login:
+    post:
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: JWT issued
+        '401':
+          description: Invalid credentials
+  /documents:
+    get:
+      summary: List documents
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentListResponse'
+        '401':
+          description: Unauthorized
+    post:
+      summary: Create document
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Document'
+      responses:
+        '200':
+          description: Created
+        '401':
+          description: Unauthorized
+  /documents/bulk-ingest:
+    post:
+      summary: Bulk ingest documents
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/Document'
+      responses:
+        '200':
+          description: Ingested
+  /documents/{id}:
+    get:
+      summary: Get document
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document
+    put:
+      summary: Update document
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Document'
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Delete document
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+  /documents/reindex:
+    post:
+      summary: Reindex documents
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                documentIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Reindex result
+  /documents/stats:
+    get:
+      summary: Document stats
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Stats
+  /documents/{id}/vector:
+    get:
+      summary: Fetch single vector
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: withPayload
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Vector
+  /documents/vectors/query:
+    post:
+      summary: Query vectors
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                documentIds:
+                  type: array
+                  items:
+                    type: string
+                limit:
+                  type: integer
+                offset:
+                  type: string
+                withPayload:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: Vector query result
+  /documents/vectors/projection:
+    post:
+      summary: Project vectors to 2D
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                limit:
+                  type: integer
+                offset:
+                  type: string
+                withPayload:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: Projection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VectorProjectionResponse'

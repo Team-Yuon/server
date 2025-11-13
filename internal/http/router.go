@@ -1,6 +1,8 @@
 package http
 
 import (
+	"net/http"
+
 	"yuon/configuration"
 	"yuon/internal/auth"
 	"yuon/internal/rag/service"
@@ -50,6 +52,8 @@ func (r *Router) SetupRoutes() {
 		panic("auth manager is not configured")
 	}
 
+	r.registerSwaggerRoutes()
+
 	v1 := r.engine.Group("/api/v1")
 	{
 		v1.GET("/health", r.healthCheck)
@@ -82,6 +86,38 @@ func (r *Router) SetupRoutes() {
 		}
 	}
 }
+
+func (r *Router) registerSwaggerRoutes() {
+	r.engine.StaticFile("/docs/openapi.yaml", "docs/openapi.yaml")
+	r.engine.GET("/docs", func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(swaggerHTML))
+	})
+}
+
+const swaggerHTML = `<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>YUON API Docs</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+    <style>
+      body { margin: 0; background: #0f172a; }
+      #swagger-ui { max-width: 960px; margin: 0 auto; }
+    </style>
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin></script>
+    <script>
+      window.onload = () => {
+        SwaggerUIBundle({
+          url: '/docs/openapi.yaml',
+          dom_id: '#swagger-ui',
+        });
+      };
+    </script>
+  </body>
+</html>`
 
 func (r *Router) Run(addr string) error {
 	return r.engine.Run(addr)
