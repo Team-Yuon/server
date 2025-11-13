@@ -11,6 +11,14 @@ BASE_URL="${1:-${BASE_URL:-http://yuon-api.dsmhs.kr}}"
 BASE_URL="${BASE_URL%/}"
 API_ROOT="${BASE_URL}/api/v1"
 DOC_FILE="${DOC_FILE:-document/sample_document.json}"
+JWT_TOKEN="${JWT_TOKEN:-}"
+
+if [[ -z "$JWT_TOKEN" ]]; then
+  echo "JWT_TOKEN 환경 변수를 설정해주세요. (signup/login 후 발급)" >&2
+  exit 1
+fi
+
+AUTH_HEADER=(-H "Authorization: Bearer ${JWT_TOKEN}")
 
 print_step() {
   printf "\n=== %s ===\n" "$1"
@@ -29,11 +37,13 @@ request() {
     status=$(curl -sS -o "$tmp" -w "%{http_code}" \
       -X "$method" \
       -H "Content-Type: application/json" \
+      "${AUTH_HEADER[@]}" \
       "$url" \
       -d "$body")
   else
     status=$(curl -sS -o "$tmp" -w "%{http_code}" \
       -X "$method" \
+      "${AUTH_HEADER[@]}" \
       "$url")
   fi
 

@@ -3,12 +3,12 @@ package http
 import (
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"yuon/configuration"
+	"yuon/docs"
 	"yuon/internal/auth"
 	"yuon/internal/rag/service"
 	"yuon/internal/storage"
-
-	"github.com/gin-gonic/gin"
 )
 
 type Router struct {
@@ -95,7 +95,10 @@ func (r *Router) SetupRoutes() {
 }
 
 func (r *Router) registerSwaggerRoutes() {
-	r.engine.StaticFile("/docs/openapi.yaml", "docs/openapi.yaml")
+	r.engine.GET("/docs/openapi.yaml", func(c *gin.Context) {
+		c.Data(http.StatusOK, "application/yaml", docs.OpenAPISpec)
+	})
+
 	r.engine.GET("/docs", func(c *gin.Context) {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(swaggerHTML))
 	})

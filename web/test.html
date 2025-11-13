@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>YUON API Playground</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      margin: 0;
+      background: #0f172a;
+      color: #f1f5f9;
+    }
+    header {
+      background: #1e293b;
+      padding: 20px 32px;
+      border-bottom: 1px solid #334155;
+    }
+    header h1 { margin: 0 0 8px 0; }
+    header .config {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    header label {
+      display: flex;
+      flex-direction: column;
+      font-size: 13px;
+      color: #cbd5f5;
+    }
+    header input {
+      margin-top: 4px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #f8fafc;
+      min-width: 260px;
+    }
+    main {
+      padding: 24px 32px 48px;
+      display: grid;
+      gap: 16px;
+    }
+    details {
+      border: 1px solid #334155;
+      border-radius: 10px;
+      background: #1e293b;
+      padding: 12px 16px;
+    }
+    summary {
+      font-weight: 600;
+      cursor: pointer;
+      outline: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    summary .method {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 12px;
+      color: #0f172a;
+    }
+    summary .path {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      flex: 1;
+    }
+    summary .desc {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-left: 12px;
+    }
+    .method.get { background: #4ade80; }
+    .method.post { background: #60a5fa; }
+    .method.put { background: #facc15; }
+    .method.delete { background: #f87171; }
+    .op-body {
+      margin-top: 16px;
+      border-top: 1px solid #334155;
+      padding-top: 16px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: #cbd5f5;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #f8fafc;
+      margin-bottom: 10px;
+      font-family: inherit;
+    }
+    textarea { min-height: 80px; }
+    button {
+      background: #38bdf8;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      color: #0f172a;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-top: 4px;
+    }
+    pre {
+      background: #020617;
+      border-radius: 10px;
+      padding: 16px;
+      min-height: 150px;
+      overflow: auto;
+      font-family: 'JetBrains Mono', monospace;
+      border: 1px solid #1e293b;
+    }
+    .divider {
+      margin: 32px 0 16px;
+      border-bottom: 1px dashed #334155;
+    }
+    @media (max-width: 720px) {
+      header .config label input { min-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>YUON API Playground</h1>
+    <div class="config">
+      <label>
+        REST Base URL
+        <input type="text" id="baseUrl" value="http://localhost:8080/api/v1" />
+      </label>
+      <label>
+        WebSocket URL
+        <input type="text" id="wsUrl" value="ws://localhost:8080/api/v1/ws" />
+      </label>
+      <label>
+        JWT Token
+        <input type="text" id="jwtToken" placeholder="로그인 후 자동 입력" />
+      </label>
+    </div>
+    <div style="margin-top:12px;">
+      <button onclick="hit('GET', '/system/health')">/system/health</button>
+      <button onclick="connectWs()">WS 연결</button>
+      <button onclick="disconnectWs()">WS 종료</button>
+      <span id="wsStatus" style="margin-left:12px;">WebSocket 상태: 연결되지 않음</span>
+    </div>
+  </header>
+
+  <main>
+    <details open>
+      <summary><span class="method get">GET</span><span class="path">/documents</span><span class="desc">문서 목록</span></summary>
+      <div class="op-body">
+        <label>page <input type="number" id="listPage" value="1" /></label>
+        <label>pageSize <input type="number" id="listPageSize" value="20" /></label>
+        <label>q <input type="text" id="listQuery" /></label>
+        <label>category <input type="text" id="listCategory" /></label>
+        <button onclick="listDocuments()">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method post">POST</span><span class="path">/auth/signup</span><span class="desc">회원가입</span></summary>
+      <div class="op-body">
+        <label>email <input type="email" id="signupEmail" /></label>
+        <label>password <input type="password" id="signupPassword" /></label>
+        <label>role <input type="text" id="signupRole" value="user" /></label>
+        <button onclick="signup()">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method post">POST</span><span class="path">/auth/login</span><span class="desc">로그인 & JWT 발급</span></summary>
+      <div class="op-body">
+        <label>email <input type="email" id="loginEmail" /></label>
+        <label>password <input type="password" id="loginPassword" /></label>
+        <button onclick="login()">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method post">POST</span><span class="path">/documents/vectors/projection</span><span class="desc">2D 프로젝션</span></summary>
+      <div class="op-body">
+        <label>limit <input type="number" id="projectionLimit" value="200" /></label>
+        <label>offset <input type="text" id="projectionOffset" /></label>
+        <label><input type="checkbox" id="projectionPayload" checked /> withPayload</label>
+        <button onclick="projectVectors()">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method post">POST</span><span class="path">/documents/upload</span><span class="desc">파일 업로드</span></summary>
+      <div class="op-body">
+        <label>file <input type="file" id="uploadFile" /></label>
+        <label>metadata (JSON)<textarea id="uploadMetadata" rows="3"></textarea></label>
+        <label>documentId (optional)<input type="text" id="uploadDocumentId" /></label>
+        <button onclick="uploadDocument()">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method post">POST</span><span class="path">/documents</span><span class="desc">단일 문서 생성</span></summary>
+      <div class="op-body">
+        <label>ID (optional)<input type="text" id="docId" /></label>
+        <label>content<textarea id="docContent" rows="4"></textarea></label>
+        <label>metadata (JSON)<textarea id="docMeta" rows="4">{"source":"playground"}</textarea></label>
+        <button onclick="createDocument()">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method post">POST</span><span class="path">/documents:bulk-ingest</span><span class="desc">벌크 문서 업로드</span></summary>
+      <div class="op-body">
+        <label>documents JSON 배열<textarea id="bulkDocs" rows="6">[
+  {"id":"bulk-doc-a","content":"문서 A","metadata":{"tag":"sample"}},
+  {"id":"bulk-doc-b","content":"문서 B","metadata":{"tag":"sample"}}
+]</textarea></label>
+        <button onclick="bulkIngest()">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method get">GET</span><span class="path">/documents/{id}</span><span class="desc">단일 문서 조회</span></summary>
+      <div class="op-body">
+        <label>Document ID<input type="text" id="singleDocId" /></label>
+        <button onclick="getDocument()">조회</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method put">PUT</span><span class="path">/documents/{id}</span><span class="desc">문서 업데이트</span></summary>
+      <div class="op-body">
+        <label>Document ID<input type="text" id="singleDocIdPut" placeholder="기존 ID" /></label>
+        <label>content<textarea id="singleDocContent" rows="3"></textarea></label>
+        <label>metadata<textarea id="singleDocMeta" rows="3">{}</textarea></label>
+        <button onclick="updateDocument()">업데이트</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method delete">DELETE</span><span class="path">/documents/{id}</span><span class="desc">문서 삭제</span></summary>
+      <div class="op-body">
+        <label>Document ID<input type="text" id="singleDocIdDelete" /></label>
+        <button onclick="deleteDocument()">삭제</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method post">POST</span><span class="path">/documents:reindex</span><span class="desc">재색인</span></summary>
+      <div class="op-body">
+        <label>documentIds (comma separated)<input type="text" id="reindexIds" /></label>
+        <button onclick="reindexDocuments()">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method get">GET</span><span class="path">/documents/stats</span><span class="desc">통계</span></summary>
+      <div class="op-body">
+        <button onclick="hit('GET', '/documents/stats')">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method get">GET</span><span class="path">/documents/{id}/vector</span><span class="desc">벡터 조회</span></summary>
+      <div class="op-body">
+        <label>Document ID<input type="text" id="vectorDocId" /></label>
+        <label><input type="checkbox" id="vectorWithPayload" checked /> withPayload</label>
+        <button onclick="fetchVector()">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method post">POST</span><span class="path">/documents/vectors:query</span><span class="desc">벡터 쿼리</span></summary>
+      <div class="op-body">
+        <label>documentIds<input type="text" id="vectorIds" /></label>
+        <label>limit <input type="number" id="vectorLimit" value="50" /></label>
+        <label>offset <input type="text" id="vectorOffset" /></label>
+        <label><input type="checkbox" id="vectorQueryPayload" checked /> withPayload</label>
+        <button onclick="queryVectors()">호출</button>
+      </div>
+    </details>
+    <div class="divider"></div>
+    <details>
+      <summary><span class="method get">WS</span><span class="path">/ws</span><span class="desc">WebSocket 대화</span></summary>
+      <div class="op-body">
+        <label>Conversation ID<input type="text" id="wsConversationId" /></label>
+        <label>Message ID<input type="text" id="wsMessageId" /></label>
+        <label>Message<textarea id="wsMessage" rows="3">대덕소마고는 어떤 학교인가요?</textarea></label>
+        <label><input type="checkbox" id="wsUseVector" checked /> use_vector_search</label>
+        <label><input type="checkbox" id="wsUseFulltext" checked /> use_full_text</label>
+        <label>top_k <input type="number" id="wsTopK" value="5" /></label>
+        <div>
+          <button onclick="startConversation()">start_conversation</button>
+          <button onclick="sendWsMessage()">append_message</button>
+          <button onclick="sendTyping()">typing</button>
+          <button onclick="endConversation()">end_conversation</button>
+        </div>
+      </div>
+    </details>
+    <div class="divider"></div>
+    <section>
+      <h2>REST 응답</h2>
+      <pre id="result">REST 응답이 여기에 표시됩니다.</pre>
+    </section>
+    <section>
+      <h2>WebSocket 로그</h2>
+      <pre id="wsLog">WS 로그가 여기에 표시됩니다.</pre>
+    </section>
+  </main>
+
+  <script>
+    async function hit(method, path, body) {
+      const base = document.getElementById('baseUrl').value.replace(/\/$/, '');
+      const url = `${base}${path}`;
+      const options = { method, headers: {} };
+      const jwtToken = document.getElementById('jwtToken').value.trim();
+      if (jwtToken) {
+        options.headers['Authorization'] = `Bearer ${jwtToken}`;
+      }
+      if (body !== undefined) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(body);
+      }
+      try {
+        const res = await fetch(url, options);
+        const text = await res.text();
+        let parsed;
+        try { parsed = JSON.parse(text); } catch { parsed = text; }
+        showResult({ url, status: res.status, body: parsed });
+      } catch (err) {
+        showResult({ url, error: err.message });
+      }
+    }
+
+    function showResult(data) {
+      document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+    }
+
+    function parseJson(text) {
+      if (!text) return {};
+      try {
+        return JSON.parse(text);
+      } catch (err) {
+        alert('잘못된 JSON: ' + err.message);
+        throw err;
+      }
+    }
+
+    function listDocuments() {
+      const params = new URLSearchParams({
+        page: document.getElementById('listPage').value || 1,
+        pageSize: document.getElementById('listPageSize').value || 20,
+      });
+      const q = document.getElementById('listQuery').value;
+      const category = document.getElementById('listCategory').value;
+      if (q) params.append('q', q);
+      if (category) params.append('category', category);
+      hit('GET', `/documents?${params.toString()}`);
+    }
+
+    function createDocument() {
+      const body = {
+        id: document.getElementById('docId').value || undefined,
+        content: document.getElementById('docContent').value,
+        metadata: parseJson(document.getElementById('docMeta').value || '{}'),
+      };
+      hit('POST', '/documents', body);
+    }
+
+    function bulkIngest() {
+      const payload = parseJson(document.getElementById('bulkDocs').value);
+      hit('POST', '/documents/bulk-ingest', payload);
+    }
+
+    function getDocument() {
+      const id = (document.getElementById('singleDocId')?.value ||
+        document.getElementById('singleDocIdPut')?.value ||
+        document.getElementById('singleDocIdDelete')?.value || '').trim();
+      if (!id) return alert('ID를 입력하세요');
+      hit('GET', `/documents/${encodeURIComponent(id)}`);
+    }
+
+    function updateDocument() {
+      const id = (document.getElementById('singleDocIdPut')?.value ||
+        document.getElementById('singleDocId')?.value || '').trim();
+      if (!id) return alert('ID를 입력하세요');
+      const body = {
+        id,
+        content: document.getElementById('singleDocContent').value,
+        metadata: parseJson(document.getElementById('singleDocMeta').value || '{}'),
+      };
+      hit('PUT', `/documents/${encodeURIComponent(id)}`, body);
+    }
+
+    function deleteDocument() {
+      const id = (document.getElementById('singleDocIdDelete')?.value ||
+        document.getElementById('singleDocId')?.value || '').trim();
+      if (!id) return alert('ID를 입력하세요');
+      hit('DELETE', `/documents/${encodeURIComponent(id)}`);
+    }
+
+    function reindexDocuments() {
+      const ids = document.getElementById('reindexIds').value
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (ids.length === 0) return alert('ID를 입력하세요');
+      hit('POST', '/documents/reindex', { documentIds: ids });
+    }
+
+    function fetchVector() {
+      const id = document.getElementById('vectorDocId').value.trim();
+      if (!id) return alert('ID를 입력하세요');
+      const withPayload = document.getElementById('vectorWithPayload').checked;
+      hit('GET', `/documents/${encodeURIComponent(id)}/vector?withPayload=${withPayload}`);
+    }
+
+    function queryVectors() {
+      const ids = document.getElementById('vectorIds').value
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      const body = {
+        documentIds: ids.length ? ids : undefined,
+        limit: Number(document.getElementById('vectorLimit').value) || 50,
+        offset: document.getElementById('vectorOffset').value || undefined,
+        withPayload: document.getElementById('vectorQueryPayload').checked,
+      };
+      hit('POST', '/documents/vectors/query', body);
+    }
+
+    function projectVectors() {
+      const body = {
+        limit: Number(document.getElementById('projectionLimit').value) || 200,
+        offset: document.getElementById('projectionOffset').value || undefined,
+        withPayload: document.getElementById('projectionPayload').checked,
+      };
+      hit('POST', '/documents/vectors/projection', body);
+    }
+
+    function signup() {
+      const body = {
+        email: document.getElementById('signupEmail').value,
+        password: document.getElementById('signupPassword').value,
+        role: document.getElementById('signupRole').value || 'user',
+      };
+      hit('POST', '/auth/signup', body);
+    }
+
+    async function login() {
+      const body = {
+        email: document.getElementById('loginEmail').value,
+        password: document.getElementById('loginPassword').value,
+      };
+      const base = document.getElementById('baseUrl').value.replace(/\/$/, '');
+      const url = `${base}/auth/login`;
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const payload = await res.json();
+        showResult({ url, status: res.status, body: payload });
+        if (res.ok && payload.token) {
+          document.getElementById('jwtToken').value = payload.token;
+        }
+      } catch (err) {
+        showResult({ url, error: err.message });
+      }
+    }
+
+    let ws;
+
+    function connectWs() {
+      const url = document.getElementById('wsUrl').value;
+      ws = new WebSocket(url);
+      ws.onopen = () => updateWsStatus('연결됨');
+      ws.onclose = () => updateWsStatus('연결 종료');
+      ws.onerror = () => updateWsStatus('에러 발생');
+      ws.onmessage = (event) => {
+        let data = event.data;
+        try { data = JSON.parse(event.data); } catch {}
+        appendWsLog({ direction: 'recv', data });
+        if (data.payload && data.payload.conversation_id) {
+          const field = document.getElementById('wsConversationId');
+          if (!field.value) field.value = data.payload.conversation_id;
+        }
+      };
+      appendWsLog({ direction: 'system', data: `connecting to ${url}` });
+    }
+
+    function disconnectWs() {
+      if (ws) {
+        ws.close();
+        ws = null;
+        appendWsLog({ direction: 'system', data: '연결 수동 종료' });
+      }
+    }
+
+    function startConversation() {
+      if (!ensureWs()) return;
+      const conversationId = document.getElementById('wsConversationId').value || undefined;
+      const payload = conversationId ? { conversation_id: conversationId } : {};
+      sendWsEnvelope('start_conversation', payload);
+    }
+
+    function sendWsMessage() {
+      if (!ensureWs()) return;
+      const conversationId = document.getElementById('wsConversationId').value || undefined;
+      const message = document.getElementById('wsMessage').value.trim();
+      if (!message) return alert('message를 입력하세요');
+
+      const payload = {
+        conversation_id: conversationId,
+        message_id: document.getElementById('wsMessageId').value || undefined,
+        message,
+        use_vector_search: document.getElementById('wsUseVector').checked,
+        use_full_text: document.getElementById('wsUseFulltext').checked,
+        top_k: Number(document.getElementById('wsTopK').value) || undefined,
+      };
+
+      sendWsEnvelope('append_message', payload);
+    }
+
+    function sendTyping() {
+      if (!ensureWs()) return;
+      const payload = {
+        conversation_id: document.getElementById('wsConversationId').value || undefined,
+      };
+      sendWsEnvelope('typing', payload);
+    }
+
+    function endConversation() {
+      if (!ensureWs()) return;
+      const payload = {
+        conversation_id: document.getElementById('wsConversationId').value || undefined,
+      };
+      sendWsEnvelope('end_conversation', payload);
+    }
+
+    function sendWsEnvelope(type, payload) {
+      const message = JSON.stringify({ type, payload });
+      ws.send(message);
+      appendWsLog({ direction: 'send', data: { type, payload } });
+    }
+
+    function ensureWs() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert('먼저 WebSocket 연결을 여세요');
+        return false;
+      }
+      return true;
+    }
+
+    function updateWsStatus(text) {
+      document.getElementById('wsStatus').textContent = `WebSocket 상태: ${text}`;
+    }
+
+    function appendWsLog(entry) {
+      const log = document.getElementById('wsLog');
+      const current = log.dataset.raw ? JSON.parse(log.dataset.raw) : [];
+      current.push({ timestamp: new Date().toISOString(), ...entry });
+      if (current.length > 50) current.shift();
+      log.dataset.raw = JSON.stringify(current);
+      log.textContent = current
+        .map((item) => `[${item.timestamp}] ${item.direction}: ${JSON.stringify(item.data)}`)
+        .join('\n');
+    }
+
+    async function uploadDocument() {
+      const fileInput = document.getElementById('uploadFile');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert('업로드할 파일을 선택하세요');
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      const metadata = document.getElementById('uploadMetadata').value;
+      if (metadata) {
+        formData.append('metadata', metadata);
+      }
+      const docId = document.getElementById('uploadDocumentId').value;
+      if (docId) {
+        formData.append('documentId', docId);
+      }
+
+      const base = document.getElementById('baseUrl').value.replace(/\/$/, '');
+      const url = `${base}/documents/upload`;
+      const jwtToken = document.getElementById('jwtToken').value.trim();
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {},
+          body: formData,
+        });
+        const payload = await res.json();
+        showResult({ url, status: res.status, body: payload });
+      } catch (err) {
+        showResult({ url, error: err.message });
+      }
+    }
+  </script>
+</body>
+</html>
