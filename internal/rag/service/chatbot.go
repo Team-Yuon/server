@@ -12,9 +12,10 @@ import (
 )
 
 type ChatbotService struct {
-	llm         *llm.OpenAIClient
-	vectorStore *vectorstore.QdrantClient
-	fullText    *search.OpenSearchClient
+	llm           *llm.OpenAIClient
+	vectorStore   *vectorstore.QdrantClient
+	fullText      *search.OpenSearchClient
+	conversations *ConversationStore
 }
 
 func NewChatbotService(
@@ -23,9 +24,10 @@ func NewChatbotService(
 	fullText *search.OpenSearchClient,
 ) *ChatbotService {
 	return &ChatbotService{
-		llm:         llmClient,
-		vectorStore: vectorStore,
-		fullText:    fullText,
+		llm:           llmClient,
+		vectorStore:   vectorStore,
+		fullText:      fullText,
+		conversations: NewConversationStore(),
 	}
 }
 
@@ -277,4 +279,25 @@ func (s *ChatbotService) QueryDocumentVectors(ctx context.Context, req *rag.Vect
 		HasMore:    hasMore,
 		NextOffset: nextOffset,
 	}, nil
+}
+
+func (s *ChatbotService) ConversationHistory(conversationID string) []rag.ChatMessage {
+	if s.conversations == nil || conversationID == "" {
+		return nil
+	}
+	return s.conversations.History(conversationID)
+}
+
+func (s *ChatbotService) AppendConversationMessage(conversationID string, msg rag.ChatMessage) {
+	if s.conversations == nil || conversationID == "" {
+		return
+	}
+	s.conversations.Append(conversationID, msg)
+}
+
+func (s *ChatbotService) CloseConversation(conversationID string) {
+	if s.conversations == nil || conversationID == "" {
+		return
+	}
+	s.conversations.End(conversationID)
 }

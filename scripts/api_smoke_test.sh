@@ -73,25 +73,10 @@ JSON
 fi
 request "POST" "/documents" "$DOC_PAYLOAD"
 
-print_step "3. 심플 챗 요청"
-CHAT_PAYLOAD='{
-  "message": "대덕소프트웨어마이스터고등학교는 어떤 학교인가요?"
-}'
-request "POST" "/chat/simple" "$CHAT_PAYLOAD"
+print_step "3. 문서 목록 조회"
+request "GET" "/documents?page=1&pageSize=5"
 
-print_step "4. 전체 챗 요청"
-FULL_CHAT_PAYLOAD=$(cat <<JSON
-{
-  "message": "전체 챗 엔드포인트 테스트입니다.",
-  "useVectorSearch": true,
-  "useFullText": true,
-  "topK": 5,
-  "history": [
-    {"role": "user", "content": "이전 대화 히스토리 샘플"}
-  ]
-}
-JSON
-)
-request "POST" "/chat" "$FULL_CHAT_PAYLOAD"
+print_step "4. 문서 통계"
+request "GET" "/documents/stats"
 
 echo -e "\n모든 API 호출이 성공적으로 완료되었습니다."

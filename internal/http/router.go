@@ -49,14 +49,10 @@ func (r *Router) SetupRoutes() {
 		v1.GET("/health", r.healthCheck)
 		v1.GET("/system/health", r.healthCheck)
 
-		chatbot := NewChatbotHandler(r.chatbotService)
-		documents := NewDocumentHandler(r.chatbotService)
+		wsHandler := NewWebSocketHandler(r.chatbotService)
+		v1.GET("/ws", wsHandler.Handle)
 
-		chatGroup := v1.Group("/chat")
-		{
-			chatGroup.POST("", chatbot.Chat)
-			chatGroup.POST("/simple", chatbot.SimpleChat)
-		}
+		documents := NewDocumentHandler(r.chatbotService)
 
 		docGroup := v1.Group("/documents")
 		{
