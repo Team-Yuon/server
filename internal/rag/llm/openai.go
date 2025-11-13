@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"yuon/configuration"
 	"yuon/internal/rag"
@@ -93,4 +94,31 @@ func (c *OpenAIClient) buildSystemPrompt(documents []rag.Document) string {
 	}
 
 	return prompt
+}
+
+func (c *OpenAIClient) ClassifyCategory(ctx context.Context, content string) (string, error) {
+	systemPrompt := `당신은 문서를 간단한 카테고리로 분류하는 어시스턴트입니다.
+- 결과는 10자 이내의 한 단어 또는 짧은 구로만 답하세요.
+- 설명이나 추가 문장은 포함하지 마세요.
+- 적절한 카테고리가 떠오르지 않으면 "기타"라고 답하세요.
+`
+
+	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: c.config.Model,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
+			{Role: openai.ChatMessageRoleUser, Content: content},
+		},
+		MaxTokens:   16,
+		Temperature: 0,
+	})
+	if err != nil {
+		return "", fmt.Errorf("카테고리 분류 실패: %w", err)
+	}
+
+	if len(resp.Choices) == 0 {
+		return "", fmt.Errorf("카테고리 응답이 비어있습니다")
+	}
+
+	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
 }

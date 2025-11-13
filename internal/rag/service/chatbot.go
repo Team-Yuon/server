@@ -134,6 +134,8 @@ func (s *ChatbotService) deduplicateAndRank(docs []rag.Document, topK int) []rag
 }
 
 func (s *ChatbotService) AddDocument(ctx context.Context, doc rag.Document) error {
+	s.enrichDocumentMetadata(ctx, &doc)
+
 	// OpenSearch에 추가
 	if err := s.fullText.AddDocument(ctx, doc); err != nil {
 		return fmt.Errorf("OpenSearch 문서 추가 실패: %w", err)
@@ -154,6 +156,10 @@ func (s *ChatbotService) AddDocument(ctx context.Context, doc rag.Document) erro
 }
 
 func (s *ChatbotService) BulkAddDocuments(ctx context.Context, docs []rag.Document) error {
+	for i := range docs {
+		s.enrichDocumentMetadata(ctx, &docs[i])
+	}
+
 	// OpenSearch 벌크 인덱싱
 	if err := s.fullText.BulkIndex(ctx, docs); err != nil {
 		return fmt.Errorf("OpenSearch 벌크 인덱싱 실패: %w", err)
@@ -186,6 +192,8 @@ func (s *ChatbotService) GetDocument(ctx context.Context, id string) (*rag.Docum
 }
 
 func (s *ChatbotService) UpdateDocument(ctx context.Context, doc rag.Document) error {
+	s.enrichDocumentMetadata(ctx, &doc)
+
 	if err := s.fullText.UpdateDocument(ctx, doc); err != nil {
 		return fmt.Errorf("OpenSearch 문서 업데이트 실패: %w", err)
 	}
@@ -300,4 +308,27 @@ func (s *ChatbotService) CloseConversation(conversationID string) {
 		return
 	}
 	s.conversations.End(conversationID)
+}
+
+func (s *ChatbotService) enrichDocumentMetadata(ctx context.Context, doc *rag.Document) {
+	if doc.Metadata == nil {
+		doc.Metadata = make(map[string]interface{})
+	}
+
+	if _, ok := doc.Metadata["category"]; ok {
+		return
+	}
+
+	category, err := s.llm.ClassifyCategory(ctx, doc.Content)
+	if err != nil {
+		slog.Warn("문서 카테고리 분류 실패", "error", err)
+		return
+	}
+
+	if category == "" {
+		return
+	}
+
+	doc.Metadata["category"] = category
+	slog.Info("문서 카테고리 자동 분류", "id", doc.ID, "category", category)
 }
