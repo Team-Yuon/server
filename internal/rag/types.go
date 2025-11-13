@@ -79,3 +79,25 @@ type VectorQueryResponse struct {
 	HasMore    bool             `json:"hasMore"`
 	NextOffset string           `json:"nextOffset,omitempty"`
 }
+
+type VectorProjectionRequest struct {
+	Limit       int    `json:"limit,omitempty"`
+	Offset      string `json:"offset,omitempty"`
+	WithPayload bool   `json:"withPayload"`
+}
+
+type ProjectedVector struct {
+	ID        string                 `json:"id"`
+	X         float64                `json:"x"`
+	Y         float64                `json:"y"`
+	Content   string                 `json:"content,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	Magnitude float64                `json:"magnitude,omitempty"`
+}
+
+type VectorProjectionResponse struct {
+	Vectors    []ProjectedVector `json:"vectors"`
+	Count      int               `json:"count"`
+	HasMore    bool              `json:"hasMore"`
+	NextOffset string            `json:"nextOffset,omitempty"`
+}

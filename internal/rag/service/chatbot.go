@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 
+	"gonum.org/v1/gonum/mat"
 	"yuon/internal/rag"
 	"yuon/internal/rag/llm"
 	"yuon/internal/rag/search"
@@ -331,4 +333,154 @@ func (s *ChatbotService) enrichDocumentMetadata(ctx context.Context, doc *rag.Do
 
 	doc.Metadata["category"] = category
 	slog.Info("문서 카테고리 자동 분류", "id", doc.ID, "category", category)
+}
+
+func (s *ChatbotService) ProjectVectors(ctx context.Context, req *rag.VectorProjectionRequest) (*rag.VectorProjectionResponse, error) {
+	query := &rag.VectorQueryRequest{
+		Limit:       req.Limit,
+		Offset:      req.Offset,
+		WithPayload: req.WithPayload,
+	}
+
+	vectorsResp, err := s.QueryDocumentVectors(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(vectorsResp.Vectors) == 0 {
+		return &rag.VectorProjectionResponse{
+			Vectors:    []rag.ProjectedVector{},
+			Count:      0,
+			HasMore:    vectorsResp.HasMore,
+			NextOffset: vectorsResp.NextOffset,
+		}, nil
+	}
+
+	points := make([][]float64, 0, len(vectorsResp.Vectors))
+	for _, v := range vectorsResp.Vectors {
+		if len(v.Vector) == 0 {
+			continue
+		}
+		point := make([]float64, len(v.Vector))
+		for i, val := range v.Vector {
+			point[i] = float64(val)
+		}
+		points = append(points, point)
+	}
+
+	if len(points) == 0 {
+		return &rag.VectorProjectionResponse{
+			Vectors:    []rag.ProjectedVector{},
+			Count:      0,
+			HasMore:    vectorsResp.HasMore,
+			NextOffset: vectorsResp.NextOffset,
+		}, nil
+	}
+
+	projection := projectTo2D(points)
+	result := make([]rag.ProjectedVector, 0, len(projection))
+
+	idx := 0
+	for i, coords := range projection {
+		for idx < len(vectorsResp.Vectors) && len(vectorsResp.Vectors[idx].Vector) == 0 {
+			idx++
+		}
+		if idx >= len(vectorsResp.Vectors) {
+			break
+		}
+		vec := vectorsResp.Vectors[idx]
+		result = append(result, rag.ProjectedVector{
+			ID:        vec.ID,
+			X:         coords[0],
+			Y:         coords[1],
+			Content:   vec.Content,
+			Metadata:  vec.Metadata,
+			Magnitude: vectorMagnitude(vec.Vector),
+		})
+		idx++
+		if i >= len(projection) {
+			break
+		}
+	}
+
+	return &rag.VectorProjectionResponse{
+		Vectors:    result,
+		Count:      len(result),
+		HasMore:    vectorsResp.HasMore,
+		NextOffset: vectorsResp.NextOffset,
+	}, nil
+}
+
+func vectorMagnitude(vec []float32) float64 {
+	var sum float64
+	for _, v := range vec {
+		sum += float64(v) * float64(v)
+	}
+	return math.Sqrt(sum)
+}
+
+func projectTo2D(points [][]float64) [][]float64 {
+	rows := len(points)
+	if rows == 0 {
+		return nil
+	}
+	cols := len(points[0])
+	if cols == 0 {
+		return nil
+	}
+
+	means := make([]float64, cols)
+	for _, point := range points {
+		for j, val := range point {
+			means[j] += val
+		}
+	}
+	for j := range means {
+		means[j] /= float64(rows)
+	}
+
+	data := make([]float64, rows*cols)
+	for i, point := range points {
+		for j := 0; j < cols; j++ {
+			data[i*cols+j] = point[j] - means[j]
+		}
+	}
+
+	matrix := mat.NewDense(rows, cols, data)
+	var svd mat.SVD
+	if ok := svd.Factorize(matrix, mat.SVDThin); !ok {
+		result := make([][]float64, rows)
+		for i := range points {
+			if cols == 1 {
+				result[i] = []float64{points[i][0], 0}
+			} else {
+				result[i] = []float64{points[i][0], points[i][1]}
+			}
+		}
+		return result
+	}
+
+	var v mat.Dense
+	svd.VTo(&v)
+	targetDims := 2
+	if cols < 2 {
+		targetDims = 1
+	}
+
+	components := v.Slice(0, cols, 0, targetDims)
+	var projected mat.Dense
+	projected.Mul(matrix, components)
+
+	projData := make([][]float64, rows)
+	for i := 0; i < rows; i++ {
+		projData[i] = make([]float64, 2)
+		projData[i][0] = projected.At(i, 0)
+		if targetDims == 2 {
+			projData[i][1] = projected.At(i, 1)
+		} else {
+			projData[i][1] = 0
+		}
+	}
+
+	return projData
 }

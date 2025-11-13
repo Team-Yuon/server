@@ -2,6 +2,7 @@ package http
 
 import (
 	"yuon/configuration"
+	"yuon/internal/auth"
 	"yuon/internal/rag/service"
 
 	"github.com/gin-gonic/gin"
@@ -11,9 +12,10 @@ type Router struct {
 	engine         *gin.Engine
 	config         *configuration.Config
 	chatbotService *service.ChatbotService
+	authManager    *auth.Manager
 }
 
-func NewRouter(cfg *configuration.Config) *Router {
+func NewRouter(cfg *configuration.Config, authManager *auth.Manager) *Router {
 	setGinMode(cfg.Server.Mode)
 
 	engine := gin.New()
@@ -22,8 +24,9 @@ func NewRouter(cfg *configuration.Config) *Router {
 	engine.Use(corsMiddleware())
 
 	return &Router{
-		engine: engine,
-		config: cfg,
+		engine:      engine,
+		config:      cfg,
+		authManager: authManager,
 	}
 }
 
@@ -43,11 +46,19 @@ func (r *Router) SetupRoutes() {
 	if r.chatbotService == nil {
 		panic("chatbot service is not configured; call SetChatbotService before SetupRoutes")
 	}
+	if r.authManager == nil {
+		panic("auth manager is not configured")
+	}
 
 	v1 := r.engine.Group("/api/v1")
 	{
 		v1.GET("/health", r.healthCheck)
 		v1.GET("/system/health", r.healthCheck)
+
+		authHandler := NewAuthHandler(r.authManager)
+		v1.POST("/auth/signup-tokens", authHandler.IssueSignupToken)
+		v1.POST("/auth/signup", authHandler.Signup)
+		v1.POST("/auth/login", authHandler.Login)
 
 		wsHandler := NewWebSocketHandler(r.chatbotService)
 		v1.GET("/ws", wsHandler.Handle)
@@ -55,6 +66,7 @@ func (r *Router) SetupRoutes() {
 		documents := NewDocumentHandler(r.chatbotService)
 
 		docGroup := v1.Group("/documents")
+		docGroup.Use(authMiddleware(r.authManager))
 		{
 			docGroup.GET("", documents.ListDocuments)
 			docGroup.GET("/stats", documents.GetStats)
@@ -63,6 +75,7 @@ func (r *Router) SetupRoutes() {
 			docGroup.POST("/bulk", documents.BulkIngestDocuments)
 			docGroup.POST("/reindex", documents.ReindexDocuments)
 			docGroup.POST("/vectors/query", documents.QueryDocumentVectors)
+			docGroup.POST("/vectors/projection", documents.ProjectVectors)
 			docGroup.GET("/:id/vector", documents.FetchDocumentVector)
 			docGroup.GET("/:id", documents.GetDocument)
 			docGroup.PUT("/:id", documents.UpdateDocument)

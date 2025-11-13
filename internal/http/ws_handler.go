@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -73,6 +74,43 @@ type streamEndPayload struct {
 	TokensUsed     int            `json:"tokens_used,omitempty"`
 }
 
+type rateLimiter struct {
+	rate     float64
+	capacity float64
+	tokens   float64
+	last     time.Time
+	mu       sync.Mutex
+}
+
+func newRateLimiter(rate float64) *rateLimiter {
+	return &rateLimiter{
+		rate:     rate,
+		capacity: rate,
+		tokens:   rate,
+		last:     time.Now(),
+	}
+}
+
+func (r *rateLimiter) Allow() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(r.last).Seconds()
+	r.last = now
+	r.tokens += elapsed * r.rate
+	if r.tokens > r.capacity {
+		r.tokens = r.capacity
+	}
+
+	if r.tokens < 1 {
+		return false
+	}
+
+	r.tokens -= 1
+	return true
+}
+
 func (h *WebSocketHandler) Handle(c *gin.Context) {
 	conn, err := wsUpgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -80,6 +118,8 @@ func (h *WebSocketHandler) Handle(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+
+	limiter := newRateLimiter(5)
 
 	for {
 		_, data, err := conn.ReadMessage()
@@ -98,6 +138,10 @@ func (h *WebSocketHandler) Handle(c *gin.Context) {
 		case "start_conversation":
 			h.handleStartConversation(conn, envelope.Payload)
 		case "append_message":
+			if !limiter.Allow() {
+				h.sendError(conn, "채팅 속도를 초과했습니다. 잠시 후 다시 시도해주세요")
+				continue
+			}
 			h.handleAppendMessage(conn, envelope.Payload)
 		case "typing":
 			h.handleTyping(conn, envelope.Payload)

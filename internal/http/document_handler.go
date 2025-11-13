@@ -226,6 +226,26 @@ func (h *DocumentHandler) QueryDocumentVectors(c *gin.Context) {
 	SuccessResponse(c, result)
 }
 
+func (h *DocumentHandler) ProjectVectors(c *gin.Context) {
+	var req rag.VectorProjectionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequestResponse(c, "잘못된 요청 형식입니다")
+		return
+	}
+
+	if req.Limit == 0 {
+		req.Limit = 200
+	}
+
+	result, err := h.service.ProjectVectors(c.Request.Context(), &req)
+	if err != nil {
+		InternalServerErrorResponse(c, "벡터 프로젝션에 실패했습니다")
+		return
+	}
+
+	SuccessResponse(c, result)
+}
+
 func ensureMetadata(doc *rag.Document) {
 	if doc.Metadata == nil {
 		doc.Metadata = map[string]interface{}{}

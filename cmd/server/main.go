@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"yuon/configuration"
+	"yuon/internal/auth"
 	httpserver "yuon/internal/http"
 	"yuon/internal/rag/llm"
 	"yuon/internal/rag/search"
@@ -34,6 +35,15 @@ func main() {
 
 	logConfig(cfg)
 
+	if cfg.Auth.RootPassword == "" {
+		slog.Error("ROOT_ADMIN_PASSWORD 환경 변수가 설정되어 있지 않습니다")
+		os.Exit(1)
+	}
+	if cfg.Auth.JWTSecret == "" {
+		slog.Error("JWT_SECRET 환경 변수가 설정되어 있지 않습니다")
+		os.Exit(1)
+	}
+
 	// RAG 시스템 초기화
 	chatbotSvc, cleanup, err := initializeRAG(cfg)
 	if err != nil {
@@ -42,7 +52,9 @@ func main() {
 	}
 	defer cleanup()
 
-	router := httpserver.NewRouter(cfg)
+	authManager := auth.NewManager(cfg.Auth.RootPassword, cfg.Auth.JWTSecret)
+
+	router := httpserver.NewRouter(cfg, authManager)
 	if chatbotSvc != nil {
 		router.SetChatbotService(chatbotSvc)
 		slog.Info("RAG 챗봇 서비스 활성화")

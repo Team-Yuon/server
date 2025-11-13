@@ -13,6 +13,7 @@ type Config struct {
 	OpenAI     OpenAIConfig
 	Qdrant     QdrantConfig
 	OpenSearch OpenSearchConfig
+	Auth       AuthConfig
 }
 
 type ServerConfig struct {
@@ -56,6 +57,11 @@ type OpenSearchConfig struct {
 	Username string `envconfig:"OPENSEARCH_USERNAME" default:"admin"`
 	Password string `envconfig:"OPENSEARCH_PASSWORD" default:"admin"`
 	Index    string `envconfig:"OPENSEARCH_INDEX" default:"documents"`
+}
+
+type AuthConfig struct {
+	RootPassword string `envconfig:"ROOT_ADMIN_PASSWORD"`
+	JWTSecret    string `envconfig:"JWT_SECRET"`
 }
 
 func Load() (*Config, error) {
