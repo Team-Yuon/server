@@ -6,6 +6,7 @@ import (
 	"yuon/configuration"
 	"yuon/internal/auth"
 	"yuon/internal/rag/service"
+	"yuon/internal/storage"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,9 +16,10 @@ type Router struct {
 	config         *configuration.Config
 	chatbotService *service.ChatbotService
 	authManager    *auth.Manager
+	storage        storage.FileStorage
 }
 
-func NewRouter(cfg *configuration.Config, authManager *auth.Manager) *Router {
+func NewRouter(cfg *configuration.Config, authManager *auth.Manager, storage storage.FileStorage) *Router {
 	setGinMode(cfg.Server.Mode)
 
 	engine := gin.New()
@@ -29,6 +31,7 @@ func NewRouter(cfg *configuration.Config, authManager *auth.Manager) *Router {
 		engine:      engine,
 		config:      cfg,
 		authManager: authManager,
+		storage:     storage,
 	}
 }
 
@@ -51,6 +54,9 @@ func (r *Router) SetupRoutes() {
 	if r.authManager == nil {
 		panic("auth manager is not configured")
 	}
+	if r.storage == nil {
+		panic("storage client is not configured")
+	}
 
 	r.registerSwaggerRoutes()
 
@@ -66,11 +72,12 @@ func (r *Router) SetupRoutes() {
 		wsHandler := NewWebSocketHandler(r.chatbotService)
 		v1.GET("/ws", wsHandler.Handle)
 
-		documents := NewDocumentHandler(r.chatbotService)
+		documents := NewDocumentHandler(r.chatbotService, r.storage)
 
 		docGroup := v1.Group("/documents")
 		docGroup.Use(authMiddleware(r.authManager))
 		{
+			docGroup.POST("/upload", documents.UploadDocument)
 			docGroup.GET("", documents.ListDocuments)
 			docGroup.GET("/stats", documents.GetStats)
 			docGroup.POST("", documents.CreateDocument)

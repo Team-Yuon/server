@@ -352,3 +352,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VectorProjectionResponse'
+  /documents/upload:
+    post:
+      summary: Upload document file
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                metadata:
+                  type: string
+                  description: JSON payload merged into metadata
+                documentId:
+                  type: string
+      responses:
+        '200':
+          description: File uploaded and document created
+        '400':
+          description: Invalid input

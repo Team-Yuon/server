@@ -1,23 +1,36 @@
 package http
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"yuon/internal/rag"
 	"yuon/internal/rag/search"
 	"yuon/internal/rag/service"
+	"yuon/internal/storage"
+	"yuon/internal/textextract"
 )
 
 type DocumentHandler struct {
 	service *service.ChatbotService
+	storage storage.FileStorage
 }
 
-func NewDocumentHandler(service *service.ChatbotService) *DocumentHandler {
+func NewDocumentHandler(service *service.ChatbotService, storage storage.FileStorage) *DocumentHandler {
 	return &DocumentHandler{
 		service: service,
+		storage: storage,
 	}
 }
 
@@ -244,6 +257,100 @@ func (h *DocumentHandler) ProjectVectors(c *gin.Context) {
 	}
 
 	SuccessResponse(c, result)
+}
+
+const maxUploadSize = 20 * 1024 * 1024
+
+func (h *DocumentHandler) UploadDocument(c *gin.Context) {
+	if h.storage == nil {
+		InternalServerErrorResponse(c, "파일 저장소가 구성되지 않았습니다")
+		return
+	}
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		BadRequestResponse(c, "file 필드를 포함한 multipart/form-data 요청이 필요합니다")
+		return
+	}
+	defer file.Close()
+
+	data, err := readFileWithLimit(file, maxUploadSize)
+	if err != nil {
+		BadRequestResponse(c, err.Error())
+		return
+	}
+
+	filename := header.Filename
+	if filename == "" {
+		filename = fmt.Sprintf("upload-%s", uuid.New().String())
+	}
+
+	text, err := textextract.ExtractText(filename, data)
+	if err != nil {
+		BadRequestResponse(c, err.Error())
+		return
+	}
+
+	metadata := make(map[string]interface{})
+	if raw := c.PostForm("metadata"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &metadata); err != nil {
+			BadRequestResponse(c, "metadata 필드는 올바른 JSON 이어야 합니다")
+			return
+		}
+	}
+
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
+	}
+
+	key := fmt.Sprintf("documents/%s/%s", time.Now().UTC().Format("20060102"), uuid.New().String()+strings.ToLower(filepath.Ext(filename)))
+	url, err := h.storage.Upload(c.Request.Context(), key, data, contentType)
+	if err != nil {
+		InternalServerErrorResponse(c, fmt.Sprintf("파일 업로드 실패: %v", err))
+		return
+	}
+
+	metadata["fileKey"] = key
+	metadata["fileUrl"] = url
+	metadata["filename"] = filename
+	metadata["contentType"] = contentType
+	metadata["uploadedAt"] = time.Now().UTC().Format(time.RFC3339)
+
+	docID := c.PostForm("documentId")
+	if docID == "" {
+		docID = uuid.New().String()
+	}
+
+	doc := rag.Document{
+		ID:       docID,
+		Content:  text,
+		Metadata: metadata,
+	}
+
+	if err := h.service.AddDocument(c.Request.Context(), doc); err != nil {
+		InternalServerErrorResponse(c, "문서 생성에 실패했습니다")
+		return
+	}
+
+	SuccessResponse(c, gin.H{
+		"message":  "파일이 업로드되고 문서가 생성되었습니다",
+		"id":       doc.ID,
+		"fileUrl":  url,
+		"fileKey":  key,
+		"fileName": filename,
+	})
+}
+
+func readFileWithLimit(file multipart.File, limit int) ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	if _, err := io.CopyN(buf, file, int64(limit)+1); err != nil && err != io.EOF {
+		return nil, fmt.Errorf("파일을 읽는 중 오류가 발생했습니다: %w", err)
+	}
+	if buf.Len() > limit {
+		return nil, fmt.Errorf("파일 크기가 %dMB를 초과합니다", limit/1024/1024)
+	}
+	return buf.Bytes(), nil
 }
 
 func ensureMetadata(doc *rag.Document) {

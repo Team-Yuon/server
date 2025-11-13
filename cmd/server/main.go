@@ -17,6 +17,7 @@ import (
 	"yuon/internal/rag/search"
 	"yuon/internal/rag/service"
 	"yuon/internal/rag/vectorstore"
+	"yuon/internal/storage"
 	"yuon/package/logger"
 	"yuon/package/validator"
 )
@@ -52,13 +53,19 @@ func main() {
 	}
 	defer cleanup()
 
+	storageClient, err := storage.NewS3Client(&cfg.Storage)
+	if err != nil {
+		slog.Error("S3 클라이언트 초기화 실패", "error", err)
+		os.Exit(1)
+	}
+
 	authManager := auth.NewManager(cfg.Auth.JWTSecret)
 	if err := authManager.EnsureRootUser("root@yuon.root", cfg.Auth.RootPassword); err != nil {
 		slog.Error("루트 사용자 초기화 실패", "error", err)
 		os.Exit(1)
 	}
 
-	router := httpserver.NewRouter(cfg, authManager)
+	router := httpserver.NewRouter(cfg, authManager, storageClient)
 	if chatbotSvc != nil {
 		router.SetChatbotService(chatbotSvc)
 		slog.Info("RAG 챗봇 서비스 활성화")

@@ -14,6 +14,7 @@ type Config struct {
 	Qdrant     QdrantConfig
 	OpenSearch OpenSearchConfig
 	Auth       AuthConfig
+	Storage    StorageConfig
 }
 
 type ServerConfig struct {
@@ -62,6 +63,16 @@ type OpenSearchConfig struct {
 type AuthConfig struct {
 	RootPassword string `envconfig:"ROOT_ADMIN_PASSWORD"`
 	JWTSecret    string `envconfig:"JWT_SECRET"`
+}
+
+type StorageConfig struct {
+	Endpoint   string `envconfig:"S3_ENDPOINT"`
+	Region     string `envconfig:"S3_REGION" default:"us-east-1"`
+	AccessKey  string `envconfig:"S3_ACCESS_KEY"`
+	SecretKey  string `envconfig:"S3_SECRET_KEY"`
+	Bucket     string `envconfig:"S3_BUCKET"`
+	UsePath    bool   `envconfig:"S3_USE_PATH_STYLE" default:"true"`
+	BaseURL    string `envconfig:"S3_BASE_URL"`
 }
 
 func Load() (*Config, error) {
