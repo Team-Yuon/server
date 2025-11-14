@@ -199,6 +199,18 @@
       </div>
     </details>
     <details>
+      <summary><span class="method get">GET</span><span class="path">/analytics/chat</span><span class="desc">챗봇 통계</span></summary>
+      <div class="op-body">
+        <button onclick="fetchAnalytics()">호출</button>
+      </div>
+    </details>
+    <details>
+      <summary><span class="method get">GET</span><span class="path">/analytics/needs</span><span class="desc">자료 보강 제안</span></summary>
+      <div class="op-body">
+        <button onclick="fetchNeeds()">호출</button>
+      </div>
+    </details>
+    <details>
       <summary><span class="method post">POST</span><span class="path">/documents</span><span class="desc">단일 문서 생성</span></summary>
       <div class="op-body">
         <label>ID (optional)<input type="text" id="docId" /></label>
@@ -592,6 +604,14 @@
       } catch (err) {
         showResult({ url, error: err.message });
       }
+    }
+
+    function fetchAnalytics() {
+      hit('GET', '/analytics/chat');
+    }
+
+    function fetchNeeds() {
+      hit('GET', '/analytics/needs');
     }
   </script>
 </body>

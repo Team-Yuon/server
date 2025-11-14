@@ -73,6 +73,30 @@ func (c *OpenAIClient) Chat(ctx context.Context, messages []rag.ChatMessage, doc
 	return resp.Choices[0].Message.Content, resp.Usage.TotalTokens, nil
 }
 
+func (c *OpenAIClient) GenerateText(ctx context.Context, systemPrompt, userPrompt string, maxTokens int) (string, error) {
+	if maxTokens == 0 {
+		maxTokens = c.config.MaxTokens
+	}
+	messages := []openai.ChatCompletionMessage{
+		{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
+		{Role: openai.ChatMessageRoleUser, Content: userPrompt},
+	}
+
+	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model:       c.config.Model,
+		Messages:    messages,
+		MaxTokens:   maxTokens,
+		Temperature: 0.2,
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(resp.Choices) == 0 {
+		return "", fmt.Errorf("응답이 비어있습니다")
+	}
+	return resp.Choices[0].Message.Content, nil
+}
+
 func (c *OpenAIClient) buildSystemPrompt(documents []rag.Document) string {
 	if len(documents) == 0 {
 		return `당신은 친절하고 도움이 되는 AI 어시스턴트입니다.

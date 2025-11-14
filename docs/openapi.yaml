@@ -352,6 +352,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VectorProjectionResponse'
+  /analytics/chat:
+    get:
+      summary: Chat analytics overview
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Analytics stats
+  /analytics/needs:
+    get:
+      summary: Knowledge gap analysis generated via LLM
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Analysis text
   /documents/upload:
     post:
       summary: Upload document file

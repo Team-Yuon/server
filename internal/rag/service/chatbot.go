@@ -18,6 +18,7 @@ type ChatbotService struct {
 	vectorStore   *vectorstore.QdrantClient
 	fullText      *search.OpenSearchClient
 	conversations *ConversationStore
+	analytics     *analyticsTracker
 }
 
 func NewChatbotService(
@@ -30,6 +31,7 @@ func NewChatbotService(
 		vectorStore:   vectorStore,
 		fullText:      fullText,
 		conversations: NewConversationStore(),
+		analytics:     newAnalyticsTracker(),
 	}
 }
 
@@ -73,6 +75,10 @@ func (s *ChatbotService) Chat(ctx context.Context, req *rag.ChatRequest) (*rag.C
 	answer, tokensUsed, err := s.llm.Chat(ctx, messages, retrievedDocs)
 	if err != nil {
 		return nil, fmt.Errorf("LLM 응답 생성 실패: %w", err)
+	}
+
+	if s.analytics != nil {
+		s.analytics.Record(req.Message, retrievedDocs)
 	}
 
 	return &rag.ChatResponse{

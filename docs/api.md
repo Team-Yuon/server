@@ -31,6 +31,7 @@ JWT는 `Authorization: Bearer <token>` 헤더로 전달합니다.
 | `POST` | `/api/v1/documents/upload` | `multipart/form-data`로 파일 업로드 → S3 저장 + 텍스트 추출 | `{ success: true, data: { message, id, fileUrl, fileKey, fileName } } |
 | `GET` | `/api/v1/documents/{id}/file` | 업로드된 원본 파일 다운로드 |
 
+
 문서 응답의 `metadata`에는 `fileUrl`, `fileKey`, `filename`, `contentType`, `uploadedAt` 등이 포함되므로 업로드한 파일 목록은 `GET /documents`로 확인할 수 있습니다.
 
 ## 벡터/프로젝션
@@ -54,3 +55,10 @@ JWT는 `Authorization: Bearer <token>` 헤더로 전달합니다.
 
 - UI: `GET /docs`
 - OpenAPI: `GET /docs/openapi.yaml`
+
+## Analytics
+
+| Method | Path | 설명 | 예시 응답 |
+|--------|------|------|------------|
+| `GET` | `/api/v1/analytics/chat` | 최근 챗봇 사용 통계 (top keywords/categories 등) | `{ success: true, data: { totalMessages, topKeywords, topCategories, requestsByHour } }` |
+| `GET` | `/api/v1/analytics/needs` | 통계를 바탕으로 LLM이 제안하는 자료 보강 영역 | `{ success: true, data: { analysis } }` |

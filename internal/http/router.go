@@ -73,6 +73,14 @@ func (r *Router) SetupRoutes() {
 		wsHandler := NewWebSocketHandler(r.chatbotService)
 		v1.GET("/ws", wsHandler.Handle)
 
+		analyticsHandler := NewAnalyticsHandler(r.chatbotService)
+		analyticsGroup := v1.Group("/analytics")
+		analyticsGroup.Use(authMiddleware(r.authManager))
+		{
+			analyticsGroup.GET("/chat", analyticsHandler.ChatStats)
+			analyticsGroup.GET("/needs", analyticsHandler.KnowledgeNeed)
+		}
+
 		documents := NewDocumentHandler(r.chatbotService, r.storage)
 
 		docGroup := v1.Group("/documents")
