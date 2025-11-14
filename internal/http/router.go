@@ -3,12 +3,13 @@ package http
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"yuon/configuration"
 	"yuon/docs"
 	"yuon/internal/auth"
 	"yuon/internal/rag/service"
 	"yuon/internal/storage"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Router struct {
@@ -86,6 +87,7 @@ func (r *Router) SetupRoutes() {
 			docGroup.POST("/reindex", documents.ReindexDocuments)
 			docGroup.POST("/vectors/query", documents.QueryDocumentVectors)
 			docGroup.POST("/vectors/projection", documents.ProjectVectors)
+			docGroup.GET("/:id/file", documents.DownloadDocumentFile)
 			docGroup.GET("/:id/vector", documents.FetchDocumentVector)
 			docGroup.GET("/:id", documents.GetDocument)
 			docGroup.PUT("/:id", documents.UpdateDocument)
@@ -111,7 +113,7 @@ const swaggerHTML = `<!DOCTYPE html>
     <title>YUON API Docs</title>
     <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
     <style>
-      body { margin: 0; background: #0f172a; }
+      body { margin: 0; background: #fff; }
       #swagger-ui { max-width: 960px; margin: 0 auto; }
     </style>
   </head>

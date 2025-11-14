@@ -377,3 +377,24 @@ paths:
           description: File uploaded and document created
         '400':
           description: Invalid input
+  /documents/{id}/file:
+    get:
+      summary: Download original file for a document
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Binary file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found

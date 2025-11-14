@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ type S3Client struct {
 	bucket   string
 	baseURL  string
 	uploader *manager.Uploader
+	client   *s3.Client
 }
 
 func NewS3Client(cfg *configuration.StorageConfig) (*S3Client, error) {
@@ -62,6 +64,7 @@ func NewS3Client(cfg *configuration.StorageConfig) (*S3Client, error) {
 		bucket:   cfg.Bucket,
 		baseURL:  strings.TrimRight(cfg.BaseURL, "/"),
 		uploader: uploader,
+		client:   s3Client,
 	}, nil
 }
 
@@ -89,4 +92,34 @@ func (c *S3Client) Upload(ctx context.Context, key string, data []byte, contentT
 		return fmt.Sprintf("%s/%s", c.baseURL, key), nil
 	}
 	return key, nil
+}
+
+func (c *S3Client) Download(ctx context.Context, key string) ([]byte, string, error) {
+	if c.bucket == "" {
+		return nil, "", fmt.Errorf("bucket is not configured")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	resp, err := c.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("s3 download failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("s3 read failed: %w", err)
+	}
+
+	contentType := "application/octet-stream"
+	if resp.ContentType != nil && *resp.ContentType != "" {
+		contentType = *resp.ContentType
+	}
+
+	return body, contentType, nil
 }

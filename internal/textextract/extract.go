@@ -6,6 +6,8 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/ledongthuc/pdf"
@@ -25,7 +27,7 @@ func ExtractText(filename string, data []byte) (string, error) {
 	case "doc":
 		return "", fmt.Errorf(".doc format is not supported; please convert to .docx")
 	case "hwp":
-		return "", fmt.Errorf(".hwp extraction is not yet supported")
+		return extractHWP(data)
 	default:
 		return "", fmt.Errorf("unsupported file type: %s", ext)
 	}
@@ -66,6 +68,34 @@ func extractPDF(data []byte) (string, error) {
 	text := strings.TrimSpace(buf.String())
 	if text == "" {
 		return "", fmt.Errorf("pdf has no extractable text")
+	}
+	return text, nil
+}
+
+func extractHWP(data []byte) (string, error) {
+	tmp, err := os.CreateTemp("", "upload-*.hwp")
+	if err != nil {
+		return "", fmt.Errorf("hwp temp file create failed: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return "", fmt.Errorf("hwp temp file write failed: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return "", fmt.Errorf("hwp temp file close failed: %w", err)
+	}
+
+	cmd := exec.Command("hwp5txt", tmp.Name())
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("hwp5txt execution failed: %w", err)
+	}
+
+	text := strings.TrimSpace(string(out))
+	if text == "" {
+		return "", fmt.Errorf("hwp 파일에서 텍스트를 추출하지 못했습니다")
 	}
 	return text, nil
 }

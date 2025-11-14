@@ -51,6 +51,10 @@ func (h *DocumentHandler) ListDocuments(c *gin.Context) {
 		return
 	}
 
+	for i := range result.Documents {
+		populateFileFields(&result.Documents[i])
+	}
+
 	SuccessResponse(c, result)
 }
 
@@ -119,6 +123,7 @@ func (h *DocumentHandler) GetDocument(c *gin.Context) {
 		return
 	}
 
+	populateFileFields(doc)
 	SuccessResponse(c, doc)
 }
 
@@ -259,6 +264,45 @@ func (h *DocumentHandler) ProjectVectors(c *gin.Context) {
 	SuccessResponse(c, result)
 }
 
+func (h *DocumentHandler) DownloadDocumentFile(c *gin.Context) {
+	if h.storage == nil {
+		InternalServerErrorResponse(c, "파일 저장소가 구성되지 않았습니다")
+		return
+	}
+
+	id := c.Param("id")
+	doc, err := h.service.GetDocument(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, search.ErrDocumentNotFound) {
+			NotFoundResponse(c, "문서를 찾을 수 없습니다")
+			return
+		}
+		InternalServerErrorResponse(c, "문서 조회에 실패했습니다")
+		return
+	}
+
+	fileKey, _ := doc.Metadata["fileKey"].(string)
+	if fileKey == "" {
+		NotFoundResponse(c, "해당 문서에는 원본 파일이 없습니다")
+		return
+	}
+
+	data, contentType, err := h.storage.Download(c.Request.Context(), fileKey)
+	if err != nil {
+		InternalServerErrorResponse(c, "파일 다운로드에 실패했습니다")
+		return
+	}
+
+	filename := "download"
+	if name, ok := doc.Metadata["filename"].(string); ok && name != "" {
+		filename = name
+	}
+
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, contentType, data)
+}
+
 const maxUploadSize = 20 * 1024 * 1024
 
 func (h *DocumentHandler) UploadDocument(c *gin.Context) {
@@ -369,4 +413,16 @@ func parseQueryInt(c *gin.Context, key string, defaultValue int) int {
 		return parsed
 	}
 	return defaultValue
+}
+
+func populateFileFields(doc *rag.Document) {
+	if doc == nil || doc.Metadata == nil {
+		return
+	}
+	if v, ok := doc.Metadata["fileKey"].(string); ok {
+		doc.FileKey = v
+	}
+	if v, ok := doc.Metadata["fileUrl"].(string); ok {
+		doc.FileURL = v
+	}
 }

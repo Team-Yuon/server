@@ -5,6 +5,8 @@ type Document struct {
 	Content  string                 `json:"content"`
 	Metadata map[string]interface{} `json:"metadata"`
 	Score    float64                `json:"score,omitempty"`
+	FileKey  string                 `json:"fileKey,omitempty"`
+	FileURL  string                 `json:"fileUrl,omitempty"`
 }
 
 type ChatMessage struct {
