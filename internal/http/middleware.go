@@ -68,15 +68,21 @@ func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
+		// Allow all origins or specify allowed origins
 		if origin != "" {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		} else {
+			// Fallback to allow all origins
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		}
 
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Type")
 		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 
+		// Handle preflight requests
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
