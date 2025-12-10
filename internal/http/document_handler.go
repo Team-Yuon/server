@@ -71,7 +71,8 @@ func (h *DocumentHandler) CreateDocument(c *gin.Context) {
 	ensureMetadata(&doc)
 
 	if err := h.service.AddDocument(c.Request.Context(), doc); err != nil {
-		InternalServerErrorResponse(c, "문서 생성에 실패했습니다")
+		c.Error(err) // Log the actual error
+		InternalServerErrorResponse(c, fmt.Sprintf("문서 생성에 실패했습니다: %v", err))
 		return
 	}
 
@@ -373,7 +374,8 @@ func (h *DocumentHandler) UploadDocument(c *gin.Context) {
 	}
 
 	if err := h.service.AddDocument(c.Request.Context(), doc); err != nil {
-		InternalServerErrorResponse(c, "문서 생성에 실패했습니다")
+		c.Error(err) // Log the actual error
+		InternalServerErrorResponse(c, fmt.Sprintf("문서 생성에 실패했습니다: %v", err))
 		return
 	}
 
