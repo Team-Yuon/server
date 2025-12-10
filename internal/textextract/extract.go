@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
@@ -47,31 +48,56 @@ func filepathExt(name string) string {
 }
 
 func extractPDF(data []byte) (string, error) {
-	// Create temporary file for pdfcpu
-	tmpFile, err := os.CreateTemp("", "upload-*.pdf")
+	// Create temporary PDF file
+	tmpPDF, err := os.CreateTemp("", "upload-*.pdf")
 	if err != nil {
 		return "", fmt.Errorf("pdf temp file create failed: %w", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpPDF.Name())
 
-	if _, err := tmpFile.Write(data); err != nil {
-		tmpFile.Close()
+	if _, err := tmpPDF.Write(data); err != nil {
+		tmpPDF.Close()
 		return "", fmt.Errorf("pdf temp file write failed: %w", err)
 	}
-	if err := tmpFile.Close(); err != nil {
+	if err := tmpPDF.Close(); err != nil {
 		return "", fmt.Errorf("pdf temp file close failed: %w", err)
 	}
 
-	// Extract text using pdfcpu
-	var buf bytes.Buffer
-	conf := model.NewDefaultConfiguration()
+	// Create temporary output directory
+	tmpDir, err := os.MkdirTemp("", "pdf-extract-*")
+	if err != nil {
+		return "", fmt.Errorf("temp dir create failed: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
 
-	err = api.ExtractContent(tmpFile.Name(), &buf, nil, conf)
+	// Extract text using pdfcpu
+	conf := model.NewDefaultConfiguration()
+	err = api.ExtractContentFile(tmpPDF.Name(), tmpDir, nil, conf)
 	if err != nil {
 		return "", fmt.Errorf("pdf text extraction failed: %w", err)
 	}
 
-	text := strings.TrimSpace(buf.String())
+	// Read extracted text files
+	var builder strings.Builder
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to read extracted content: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		filePath := filepath.Join(tmpDir, entry.Name())
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			continue
+		}
+		builder.Write(content)
+		builder.WriteString("\n")
+	}
+
+	text := strings.TrimSpace(builder.String())
 	if text == "" {
 		return "", fmt.Errorf("pdf has no extractable text")
 	}
