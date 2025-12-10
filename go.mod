@@ -14,12 +14,23 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
+	github.com/pdfcpu/pdfcpu v0.11.1
 	github.com/qdrant/go-client v1.15.2
 	github.com/sashabaranov/go-openai v1.41.2
 	golang.org/x/crypto v0.43.0
 	gonum.org/v1/gonum v0.15.0
+)
+
+require (
+	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
+	github.com/hhrutter/lzw v1.0.0 // indirect
+	github.com/hhrutter/pkcs7 v0.2.0 // indirect
+	github.com/hhrutter/tiff v1.0.2 // indirect
+	github.com/mattn/go-runewidth v0.0.19 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	golang.org/x/image v0.32.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (
@@ -66,7 +77,7 @@ require (
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240827150818-7e3bb234dfed
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240827150818-7e3bb234dfed // indirect
 	google.golang.org/grpc v1.66.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )

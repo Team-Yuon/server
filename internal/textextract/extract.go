@@ -10,7 +10,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/ledongthuc/pdf"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
 
 // ExtractText attempts to read text from supported document types.
@@ -46,25 +47,30 @@ func filepathExt(name string) string {
 }
 
 func extractPDF(data []byte) (string, error) {
-	reader := bytes.NewReader(data)
-	pdfReader, err := pdf.NewReader(reader, int64(len(data)))
+	// Create temporary file for pdfcpu
+	tmpFile, err := os.CreateTemp("", "upload-*.pdf")
 	if err != nil {
-		return "", fmt.Errorf("pdf parse failed: %w", err)
+		return "", fmt.Errorf("pdf temp file create failed: %w", err)
 	}
-	var buf strings.Builder
-	numPages := pdfReader.NumPage()
-	for i := 1; i <= numPages; i++ {
-		page := pdfReader.Page(i)
-		if page.V.IsNull() {
-			continue
-		}
-		content, err := page.GetPlainText(nil)
-		if err != nil {
-			return "", fmt.Errorf("pdf text extraction failed: %w", err)
-		}
-		buf.WriteString(content)
-		buf.WriteString("\n")
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		return "", fmt.Errorf("pdf temp file write failed: %w", err)
 	}
+	if err := tmpFile.Close(); err != nil {
+		return "", fmt.Errorf("pdf temp file close failed: %w", err)
+	}
+
+	// Extract text using pdfcpu
+	var buf bytes.Buffer
+	conf := model.NewDefaultConfiguration()
+
+	err = api.ExtractContent(tmpFile.Name(), &buf, nil, conf)
+	if err != nil {
+		return "", fmt.Errorf("pdf text extraction failed: %w", err)
+	}
+
 	text := strings.TrimSpace(buf.String())
 	if text == "" {
 		return "", fmt.Errorf("pdf has no extractable text")
