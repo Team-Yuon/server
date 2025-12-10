@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 
 	"gonum.org/v1/gonum/mat"
 	"yuon/internal/rag"
@@ -144,23 +145,99 @@ func (s *ChatbotService) deduplicateAndRank(docs []rag.Document, topK int) []rag
 func (s *ChatbotService) AddDocument(ctx context.Context, doc rag.Document) error {
 	s.enrichDocumentMetadata(ctx, &doc)
 
-	// OpenSearch에 추가
+	// OpenSearch에 추가 (전체 문서)
 	if err := s.fullText.AddDocument(ctx, doc); err != nil {
 		return fmt.Errorf("OpenSearch 문서 추가 실패: %w", err)
 	}
 
-	// 벡터 생성 및 Qdrant에 추가
-	vector, err := s.llm.GenerateEmbedding(ctx, doc.Content)
-	if err != nil {
-		return fmt.Errorf("임베딩 생성 실패: %w", err)
-	}
+	// 텍스트가 너무 길면 청크로 나눔
+	chunks := s.splitTextIntoChunks(doc.Content, 6000) // ~6000 tokens max per chunk
 
-	if err := s.vectorStore.AddDocument(ctx, doc, vector); err != nil {
-		return fmt.Errorf("Qdrant 문서 추가 실패: %w", err)
+	if len(chunks) == 1 {
+		// 단일 청크: 그대로 임베딩
+		vector, err := s.llm.GenerateEmbedding(ctx, doc.Content)
+		if err != nil {
+			return fmt.Errorf("임베딩 생성 실패: %w", err)
+		}
+
+		if err := s.vectorStore.AddDocument(ctx, doc, vector); err != nil {
+			return fmt.Errorf("Qdrant 문서 추가 실패: %w", err)
+		}
+	} else {
+		// 여러 청크: 각 청크마다 임베딩 생성하고 평균 계산
+		slog.Info("문서가 크므로 청크로 분할", "id", doc.ID, "chunks", len(chunks))
+
+		vectors := make([][]float32, len(chunks))
+		for i, chunk := range chunks {
+			vector, err := s.llm.GenerateEmbedding(ctx, chunk)
+			if err != nil {
+				return fmt.Errorf("청크 %d 임베딩 생성 실패: %w", i, err)
+			}
+			vectors[i] = vector
+		}
+
+		// 벡터 평균 계산
+		avgVector := s.averageVectors(vectors)
+
+		if err := s.vectorStore.AddDocument(ctx, doc, avgVector); err != nil {
+			return fmt.Errorf("Qdrant 문서 추가 실패: %w", err)
+		}
 	}
 
 	slog.Info("문서 추가 완료", "id", doc.ID)
 	return nil
+}
+
+// splitTextIntoChunks splits text into chunks of approximately maxChars characters
+func (s *ChatbotService) splitTextIntoChunks(text string, maxChars int) []string {
+	if len(text) <= maxChars {
+		return []string{text}
+	}
+
+	var chunks []string
+	words := strings.Fields(text)
+	var currentChunk strings.Builder
+
+	for _, word := range words {
+		if currentChunk.Len()+len(word)+1 > maxChars {
+			if currentChunk.Len() > 0 {
+				chunks = append(chunks, strings.TrimSpace(currentChunk.String()))
+				currentChunk.Reset()
+			}
+		}
+		if currentChunk.Len() > 0 {
+			currentChunk.WriteString(" ")
+		}
+		currentChunk.WriteString(word)
+	}
+
+	if currentChunk.Len() > 0 {
+		chunks = append(chunks, strings.TrimSpace(currentChunk.String()))
+	}
+
+	return chunks
+}
+
+// averageVectors calculates the average of multiple vectors
+func (s *ChatbotService) averageVectors(vectors [][]float32) []float32 {
+	if len(vectors) == 0 {
+		return nil
+	}
+
+	dim := len(vectors[0])
+	result := make([]float32, dim)
+
+	for _, vec := range vectors {
+		for i, val := range vec {
+			result[i] += val
+		}
+	}
+
+	for i := range result {
+		result[i] /= float32(len(vectors))
+	}
+
+	return result
 }
 
 func (s *ChatbotService) BulkAddDocuments(ctx context.Context, docs []rag.Document) error {
