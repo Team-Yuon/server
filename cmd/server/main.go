@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"yuon/configuration"
 	"yuon/internal/auth"
+	"yuon/internal/database"
 	httpserver "yuon/internal/http"
 	"yuon/internal/rag/llm"
 	"yuon/internal/rag/search"
@@ -36,6 +38,18 @@ func main() {
 
 	logConfig(cfg)
 
+	db, err := database.Connect(&cfg.Database)
+	if err != nil {
+		slog.Error("데이터베이스 연결 실패", "error", err)
+		os.Exit(1)
+	}
+	defer safeClose(db)
+
+	if err := database.EnsureSchemas(db); err != nil {
+		slog.Error("DB 스키마 초기화 실패", "error", err)
+		os.Exit(1)
+	}
+
 	if cfg.Auth.RootPassword == "" {
 		slog.Error("ROOT_ADMIN_PASSWORD 환경 변수가 설정되어 있지 않습니다")
 		os.Exit(1)
@@ -46,7 +60,7 @@ func main() {
 	}
 
 	// RAG 시스템 초기화
-	chatbotSvc, cleanup, err := initializeRAG(cfg)
+	chatbotSvc, cleanup, err := initializeRAG(cfg, db)
 	if err != nil {
 		slog.Error("RAG 시스템 초기화 실패", "error", err)
 		os.Exit(1)
@@ -59,7 +73,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	authManager := auth.NewManager(cfg.Auth.JWTSecret)
+	userStore := auth.NewPostgresUserStore(db)
+	authManager := auth.NewManager(cfg.Auth.JWTSecret, userStore)
 	if err := authManager.EnsureRootUser("root@yuon.root", cfg.Auth.RootPassword); err != nil {
 		slog.Error("루트 사용자 초기화 실패", "error", err)
 		os.Exit(1)
@@ -77,6 +92,12 @@ func main() {
 	go startServer(srv, cfg)
 
 	waitForShutdown(srv)
+}
+
+func safeClose(db *sql.DB) {
+	if db != nil {
+		_ = db.Close()
+	}
 }
 
 func banner() {
@@ -126,7 +147,7 @@ func startServer(srv *http.Server, cfg *configuration.Config) {
 	}
 }
 
-func initializeRAG(cfg *configuration.Config) (*service.ChatbotService, func(), error) {
+func initializeRAG(cfg *configuration.Config, db *sql.DB) (*service.ChatbotService, func(), error) {
 	// OpenAI 클라이언트
 	llmClient := llm.NewOpenAIClient(&cfg.OpenAI)
 	slog.Info("OpenAI 클라이언트 초기화 완료")
@@ -145,8 +166,15 @@ func initializeRAG(cfg *configuration.Config) (*service.ChatbotService, func(), 
 	}
 	slog.Info("OpenSearch 클라이언트 초기화 완료", "url", cfg.OpenSearch.URL)
 
+	var convStore service.ConversationRepository
+	var analyticsStore service.AnalyticsStore
+	if db != nil {
+		convStore = service.NewPostgresConversationStore(db)
+		analyticsStore = service.NewPostgresAnalyticsStore(db)
+	}
+
 	// 챗봇 서비스
-	chatbotSvc := service.NewChatbotService(llmClient, qdrantClient, opensearchClient)
+	chatbotSvc := service.NewChatbotService(llmClient, qdrantClient, opensearchClient, convStore, analyticsStore)
 
 	cleanup := func() {
 		if qdrantClient != nil {

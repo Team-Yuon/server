@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -15,21 +16,20 @@ type User struct {
 	Email        string
 	PasswordHash []byte
 	Role         string
+	CreatedAt    time.Time
 }
 
 type Manager struct {
 	jwtSecret []byte
 
-	mu        sync.RWMutex
-	users     map[string]*User
-	emailToID map[string]string
+	mu    sync.RWMutex
+	store UserStore
 }
 
-func NewManager(jwtSecret string) *Manager {
+func NewManager(jwtSecret string, store UserStore) *Manager {
 	return &Manager{
 		jwtSecret: []byte(jwtSecret),
-		users:     make(map[string]*User),
-		emailToID: make(map[string]string),
+		store:     store,
 	}
 }
 
@@ -38,20 +38,9 @@ func (m *Manager) EnsureRootUser(email, password string) error {
 		return errors.New("root email/password required")
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
-	}
-
-	if id, exists := m.emailToID[email]; exists {
-		if user, ok := m.users[id]; ok {
-			user.PasswordHash = hash
-			user.Role = "root"
-			return nil
-		}
 	}
 
 	user := &User{
@@ -61,9 +50,10 @@ func (m *Manager) EnsureRootUser(email, password string) error {
 		Role:         "root",
 	}
 
-	m.users[user.ID] = user
-	m.emailToID[email] = user.ID
-	return nil
+	if m.store == nil {
+		return errors.New("user store is not configured")
+	}
+	return m.store.Upsert(context.Background(), user)
 }
 
 func (m *Manager) Signup(email, password, role string) (string, *User, error) {
@@ -75,10 +65,11 @@ func (m *Manager) Signup(email, password, role string) (string, *User, error) {
 		role = "user"
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	if m.store == nil {
+		return "", nil, errors.New("user store is not configured")
+	}
 
-	if _, exists := m.emailToID[email]; exists {
+	if existing, err := m.store.FindByEmail(context.Background(), email); err == nil && existing != nil {
 		return "", nil, errors.New("email already registered")
 	}
 
@@ -94,8 +85,9 @@ func (m *Manager) Signup(email, password, role string) (string, *User, error) {
 		Role:         role,
 	}
 
-	m.users[user.ID] = user
-	m.emailToID[email] = user.ID
+	if err := m.store.Create(context.Background(), user); err != nil {
+		return "", nil, err
+	}
 
 	token, err := m.generateJWT(user)
 	if err != nil {
@@ -106,14 +98,14 @@ func (m *Manager) Signup(email, password, role string) (string, *User, error) {
 }
 
 func (m *Manager) Login(email, password string) (string, *User, error) {
-	m.mu.RLock()
-	userID, ok := m.emailToID[email]
-	if !ok {
-		m.mu.RUnlock()
+	if m.store == nil {
+		return "", nil, errors.New("user store is not configured")
+	}
+
+	user, err := m.store.FindByEmail(context.Background(), email)
+	if err != nil {
 		return "", nil, errors.New("invalid credentials")
 	}
-	user := m.users[userID]
-	m.mu.RUnlock()
 
 	if err := bcrypt.CompareHashAndPassword(user.PasswordHash, []byte(password)); err != nil {
 		return "", nil, errors.New("invalid credentials")
@@ -139,11 +131,10 @@ func (m *Manager) ValidateJWT(token string) (*Claims, error) {
 		return nil, errors.New("invalid token")
 	}
 
-	m.mu.RLock()
-	_, ok := m.users[claims.Subject]
-	m.mu.RUnlock()
-	if !ok {
-		return nil, errors.New("user not found")
+	if m.store != nil {
+		if _, err := m.store.FindByID(context.Background(), claims.Subject); err != nil {
+			return nil, errors.New("user not found")
+		}
 	}
 
 	return claims, nil
@@ -151,19 +142,14 @@ func (m *Manager) ValidateJWT(token string) (*Claims, error) {
 
 // AllUsers returns a shallow copy of users for read-only purposes.
 func (m *Manager) AllUsers() []*User {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	list := make([]*User, 0, len(m.users))
-	for _, u := range m.users {
-		list = append(list, &User{
-			ID:           u.ID,
-			Email:        u.Email,
-			PasswordHash: u.PasswordHash,
-			Role:         u.Role,
-		})
+	if m.store == nil {
+		return nil
 	}
-	return list
+	users, err := m.store.List(context.Background())
+	if err != nil {
+		return nil
+	}
+	return users
 }
 
 type Claims struct {

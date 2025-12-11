@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math"
 	"strings"
+	"time"
 
 	"gonum.org/v1/gonum/mat"
 	"yuon/internal/rag"
@@ -19,6 +20,7 @@ type ChatbotService struct {
 	vectorStore   *vectorstore.QdrantClient
 	fullText      *search.OpenSearchClient
 	conversations *ConversationStore
+	convRepo      ConversationRepository
 	analytics     *analyticsTracker
 }
 
@@ -26,13 +28,16 @@ func NewChatbotService(
 	llmClient *llm.OpenAIClient,
 	vectorStore *vectorstore.QdrantClient,
 	fullText *search.OpenSearchClient,
+	convStore ConversationRepository,
+	analyticsStore AnalyticsStore,
 ) *ChatbotService {
 	return &ChatbotService{
 		llm:           llmClient,
 		vectorStore:   vectorStore,
 		fullText:      fullText,
 		conversations: NewConversationStore(),
-		analytics:     newAnalyticsTracker(llmClient),
+		convRepo:      convStore,
+		analytics:     newAnalyticsTracker(llmClient, analyticsStore),
 	}
 }
 
@@ -386,6 +391,10 @@ func (s *ChatbotService) AppendConversationMessage(conversationID string, msg ra
 		return
 	}
 	s.conversations.Append(conversationID, msg)
+
+	if s.convRepo != nil {
+		_ = s.convRepo.AddMessage(context.Background(), conversationID, msg.Role, msg.Content, time.Now().UTC())
+	}
 }
 
 func (s *ChatbotService) CloseConversation(conversationID string) {
@@ -393,6 +402,32 @@ func (s *ChatbotService) CloseConversation(conversationID string) {
 		return
 	}
 	s.conversations.End(conversationID)
+}
+
+func (s *ChatbotService) EnsureConversation(conversationID string) {
+	if s.convRepo != nil && conversationID != "" {
+		_ = s.convRepo.EnsureConversation(context.Background(), conversationID)
+	}
+}
+
+func (s *ChatbotService) RecordTokenUsage(conversationID string, tokens int) {
+	if s.convRepo != nil && conversationID != "" {
+		_ = s.convRepo.UpdateTokenUsage(context.Background(), conversationID, tokens)
+	}
+}
+
+func (s *ChatbotService) ListConversationSummaries(ctx context.Context, limit int) ([]ConversationSummary, error) {
+	if s.convRepo == nil {
+		return nil, fmt.Errorf("conversation store not configured")
+	}
+	return s.convRepo.List(ctx, limit)
+}
+
+func (s *ChatbotService) GetConversationMessages(ctx context.Context, id string) ([]ConversationMessage, error) {
+	if s.convRepo == nil {
+		return nil, fmt.Errorf("conversation store not configured")
+	}
+	return s.convRepo.Messages(ctx, id)
 }
 
 func (s *ChatbotService) enrichDocumentMetadata(ctx context.Context, doc *rag.Document) {

@@ -1,7 +1,6 @@
 package http
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -36,8 +35,11 @@ func (h *UserHandler) List(c *gin.Context) {
 	users := h.manager.AllUsers()
 	var resp []userResponse
 
-	now := time.Now().UTC().Format("2006-01-02")
 	for _, u := range users {
+		created := u.CreatedAt
+		if created.IsZero() {
+			created = time.Now().UTC()
+		}
 		resp = append(resp, userResponse{
 			ID:         u.ID,
 			Name:       u.Email, // 이름 데이터가 없어 이메일을 이름으로 사용
@@ -45,7 +47,7 @@ func (h *UserHandler) List(c *gin.Context) {
 			Role:       u.Role,
 			Status:     "active",
 			LastActive: "방금 전",
-			CreatedAt:  now,
+			CreatedAt:  created.Format(time.RFC3339),
 		})
 	}
 

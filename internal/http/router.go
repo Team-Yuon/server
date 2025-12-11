@@ -90,7 +90,7 @@ func (r *Router) SetupRoutes() {
 		}
 
 		// Conversations
-		conversationHandler := NewConversationHandler()
+		conversationHandler := NewConversationHandler(r.chatbotService)
 		convGroup := v1.Group("/conversations")
 		convGroup.Use(authMiddleware(r.authManager))
 		{

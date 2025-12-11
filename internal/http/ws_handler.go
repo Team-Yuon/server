@@ -161,6 +161,7 @@ func (h *WebSocketHandler) handleStartConversation(conn *websocket.Conn, payload
 		req.ConversationID = uuid.New().String()
 	}
 
+	h.service.EnsureConversation(req.ConversationID)
 	h.sendSystemNotice(conn, req.ConversationID, "conversation_started")
 }
 
@@ -182,6 +183,8 @@ func (h *WebSocketHandler) handleAppendMessage(conn *websocket.Conn, payload jso
 	if req.MessageID == "" {
 		req.MessageID = uuid.New().String()
 	}
+
+	h.service.EnsureConversation(req.ConversationID)
 
 	h.write(conn, wsEnvelope{
 		Type:    "message_ack",
@@ -257,6 +260,7 @@ func (h *WebSocketHandler) handleAppendMessage(conn *websocket.Conn, payload jso
 		Role:    "assistant",
 		Content: resp.Answer,
 	})
+	h.service.RecordTokenUsage(req.ConversationID, resp.TokensUsed)
 }
 
 func (h *WebSocketHandler) sendError(conn *websocket.Conn, msg string) {

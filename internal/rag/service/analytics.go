@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -27,6 +28,7 @@ type AnalyticsStats struct {
 
 type analyticsTracker struct {
 	llm            *llm.OpenAIClient
+	store          AnalyticsStore
 	mu             sync.RWMutex
 	totalMessages  int
 	keywordCounts  map[string]int
@@ -34,9 +36,10 @@ type analyticsTracker struct {
 	hourlyCounts   map[string]int
 }
 
-func newAnalyticsTracker(llmClient *llm.OpenAIClient) *analyticsTracker {
+func newAnalyticsTracker(llmClient *llm.OpenAIClient, store AnalyticsStore) *analyticsTracker {
 	return &analyticsTracker{
 		llm:            llmClient,
+		store:          store,
 		keywordCounts:  make(map[string]int),
 		categoryCounts: make(map[string]int),
 		hourlyCounts:   make(map[string]int),
@@ -72,9 +75,29 @@ func (a *analyticsTracker) Record(ctx context.Context, message string, docs []ra
 
 	hourKey := time.Now().UTC().Format("15:00")
 	a.hourlyCounts[hourKey]++
+
+	// Persist to store if available
+	if a.store != nil {
+		cats := make([]string, 0)
+		for _, doc := range docs {
+			if doc.Metadata == nil {
+				continue
+			}
+			if c, ok := doc.Metadata["category"].(string); ok && c != "" {
+				cats = append(cats, c)
+			}
+		}
+		_ = a.store.Record(ctx, tokens, cats, hourKey)
+	}
 }
 
 func (a *analyticsTracker) Snapshot() AnalyticsStats {
+	if a.store != nil {
+		if snap, err := a.store.Snapshot(context.Background()); err == nil {
+			return snap
+		}
+	}
+
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
