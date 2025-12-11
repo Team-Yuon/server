@@ -70,9 +70,9 @@ func extractPDF(data []byte) (string, error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Extract text using pdfcpu
+	// Extract text using pdfcpu (text-focused extractor)
 	conf := model.NewDefaultConfiguration()
-	err = api.ExtractContentFile(tmpPDF.Name(), tmpDir, nil, conf)
+	err = api.ExtractTextFile(tmpPDF.Name(), tmpDir, nil, conf)
 	if err != nil {
 		return "", fmt.Errorf("pdf text extraction failed: %w", err)
 	}

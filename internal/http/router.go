@@ -81,6 +81,23 @@ func (r *Router) SetupRoutes() {
 			analyticsGroup.GET("/needs", analyticsHandler.KnowledgeNeed)
 		}
 
+		// Users
+		userHandler := NewUserHandler(r.authManager)
+		userGroup := v1.Group("/users")
+		userGroup.Use(authMiddleware(r.authManager))
+		{
+			userGroup.GET("", userHandler.List)
+		}
+
+		// Conversations
+		conversationHandler := NewConversationHandler()
+		convGroup := v1.Group("/conversations")
+		convGroup.Use(authMiddleware(r.authManager))
+		{
+			convGroup.GET("", conversationHandler.List)
+			convGroup.GET("/:id", conversationHandler.Detail)
+		}
+
 		documents := NewDocumentHandler(r.chatbotService, r.storage)
 
 		docGroup := v1.Group("/documents")

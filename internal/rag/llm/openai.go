@@ -146,3 +146,43 @@ func (c *OpenAIClient) ClassifyCategory(ctx context.Context, content string) (st
 
 	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
 }
+
+// ExtractKeywords returns a small set of comma-separated keywords using the LLM.
+func (c *OpenAIClient) ExtractKeywords(ctx context.Context, text string, maxKeywords int) ([]string, error) {
+	if maxKeywords <= 0 {
+		maxKeywords = 8
+	}
+
+	systemPrompt := fmt.Sprintf(`당신은 키워드 추출기입니다.
+- 입력 문장에서 의미 있는 핵심 키워드 %d개 이내를 쉼표로 구분해 출력하세요.
+- 조사/어미/구두점은 제거하고 명사/핵심 구만 남기세요.
+- 추가 설명 없이 키워드만 출력하세요.`, maxKeywords)
+
+	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: c.config.Model,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
+			{Role: openai.ChatMessageRoleUser, Content: text},
+		},
+		MaxTokens:   64,
+		Temperature: 0,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("키워드 추출 실패: %w", err)
+	}
+
+	if len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("키워드 추출 응답이 비어있습니다")
+	}
+
+	raw := resp.Choices[0].Message.Content
+	parts := strings.Split(raw, ",")
+	var keywords []string
+	for _, p := range parts {
+		k := strings.TrimSpace(p)
+		if k != "" {
+			keywords = append(keywords, k)
+		}
+	}
+	return keywords, nil
+}

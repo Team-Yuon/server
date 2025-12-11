@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"yuon/internal/rag"
+	"yuon/internal/rag/llm"
 )
 
 type keywordStat struct {
@@ -25,6 +26,7 @@ type AnalyticsStats struct {
 }
 
 type analyticsTracker struct {
+	llm            *llm.OpenAIClient
 	mu             sync.RWMutex
 	totalMessages  int
 	keywordCounts  map[string]int
@@ -32,16 +34,24 @@ type analyticsTracker struct {
 	hourlyCounts   map[string]int
 }
 
-func newAnalyticsTracker() *analyticsTracker {
+func newAnalyticsTracker(llmClient *llm.OpenAIClient) *analyticsTracker {
 	return &analyticsTracker{
+		llm:            llmClient,
 		keywordCounts:  make(map[string]int),
 		categoryCounts: make(map[string]int),
 		hourlyCounts:   make(map[string]int),
 	}
 }
 
-func (a *analyticsTracker) Record(message string, docs []rag.Document) {
+func (a *analyticsTracker) Record(ctx context.Context, message string, docs []rag.Document) {
 	tokens := tokenize(message)
+
+	// LLM 기반 키워드 추출 시도 (실패 시 기존 토큰화 유지)
+	if a.llm != nil {
+		if llmKeywords, err := a.llm.ExtractKeywords(ctx, message, 8); err == nil && len(llmKeywords) > 0 {
+			tokens = llmKeywords
+		}
+	}
 
 	a.mu.Lock()
 	defer a.mu.Unlock()

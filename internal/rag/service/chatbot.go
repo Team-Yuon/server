@@ -32,7 +32,7 @@ func NewChatbotService(
 		vectorStore:   vectorStore,
 		fullText:      fullText,
 		conversations: NewConversationStore(),
-		analytics:     newAnalyticsTracker(),
+		analytics:     newAnalyticsTracker(llmClient),
 	}
 }
 
@@ -79,7 +79,7 @@ func (s *ChatbotService) Chat(ctx context.Context, req *rag.ChatRequest) (*rag.C
 	}
 
 	if s.analytics != nil {
-		s.analytics.Record(req.Message, retrievedDocs)
+		s.analytics.Record(ctx, req.Message, retrievedDocs)
 	}
 
 	return &rag.ChatResponse{

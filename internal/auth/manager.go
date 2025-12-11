@@ -149,6 +149,23 @@ func (m *Manager) ValidateJWT(token string) (*Claims, error) {
 	return claims, nil
 }
 
+// AllUsers returns a shallow copy of users for read-only purposes.
+func (m *Manager) AllUsers() []*User {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	list := make([]*User, 0, len(m.users))
+	for _, u := range m.users {
+		list = append(list, &User{
+			ID:           u.ID,
+			Email:        u.Email,
+			PasswordHash: u.PasswordHash,
+			Role:         u.Role,
+		})
+	}
+	return list
+}
+
 type Claims struct {
 	jwt.RegisteredClaims
 	Email string `json:"email"`
