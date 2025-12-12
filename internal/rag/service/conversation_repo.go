@@ -111,8 +111,12 @@ func (s *PostgresConversationStore) List(ctx context.Context, limit int) ([]Conv
 	var result []ConversationSummary
 	for rows.Next() {
 		var item ConversationSummary
-		if err := rows.Scan(&item.ID, &item.Preview, &item.MessageCount, &item.TokenUsage, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		var preview sql.NullString
+		if err := rows.Scan(&item.ID, &preview, &item.MessageCount, &item.TokenUsage, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, err
+		}
+		if preview.Valid {
+			item.Preview = preview.String
 		}
 		result = append(result, item)
 	}
