@@ -26,6 +26,7 @@ type ConversationRepository interface {
 	EnsureConversation(ctx context.Context, id string) error
 	AddMessage(ctx context.Context, id, role, content string, ts time.Time) error
 	UpdateTokenUsage(ctx context.Context, id string, tokens int) error
+	UpdateTitle(ctx context.Context, id, title string) error
 	List(ctx context.Context, limit int) ([]ConversationSummary, error)
 	Messages(ctx context.Context, id string) ([]ConversationMessage, error)
 }
@@ -93,6 +94,22 @@ func (s *PostgresConversationStore) UpdateTokenUsage(ctx context.Context, id str
 	return nil
 }
 
+func (s *PostgresConversationStore) UpdateTitle(ctx context.Context, id, title string) error {
+	if title == "" {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE conversations
+		SET preview = $2,
+		    updated_at = NOW()
+		WHERE id = $1 AND (preview IS NULL OR preview = '')
+	`, id, title)
+	if err != nil {
+		return fmt.Errorf("update conversation title failed: %w", err)
+	}
+	return nil
+}
+
 func (s *PostgresConversationStore) List(ctx context.Context, limit int) ([]ConversationSummary, error) {
 	if limit <= 0 {
 		limit = 100
@@ -100,6 +117,7 @@ func (s *PostgresConversationStore) List(ctx context.Context, limit int) ([]Conv
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, preview, message_count, token_usage, created_at, updated_at
 		FROM conversations
+		WHERE message_count > 0
 		ORDER BY updated_at DESC
 		LIMIT $1
 	`, limit)

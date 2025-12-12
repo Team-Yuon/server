@@ -198,13 +198,14 @@ func (h *DocumentHandler) ReindexDocuments(c *gin.Context) {
 }
 
 func (h *DocumentHandler) GetStats(c *gin.Context) {
-	stats, err := h.service.GetDocumentStats(c.Request.Context())
+	// Return dashboard stats instead of just document stats
+	dashboardStats, err := h.service.GetDashboardStats(c.Request.Context())
 	if err != nil {
-		InternalServerErrorResponse(c, "문서 통계 조회에 실패했습니다")
+		InternalServerErrorResponse(c, "대시보드 통계 조회에 실패했습니다")
 		return
 	}
 
-	SuccessResponse(c, stats)
+	SuccessResponse(c, dashboardStats)
 }
 
 func (h *DocumentHandler) FetchDocumentVector(c *gin.Context) {

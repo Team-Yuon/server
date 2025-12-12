@@ -361,6 +361,63 @@ func (s *ChatbotService) GetDocumentStats(ctx context.Context) (*rag.DocumentSta
 	return s.fullText.GetStats(ctx)
 }
 
+func (s *ChatbotService) GetDashboardStats(ctx context.Context) (*rag.DashboardStats, error) {
+	stats := &rag.DashboardStats{}
+
+	// Get total documents
+	if docStats, err := s.fullText.GetStats(ctx); err == nil {
+		stats.TotalDocuments = docStats.TotalDocuments
+	}
+
+	// Get total conversations (only those with messages)
+	if s.convRepo != nil {
+		if conversations, err := s.convRepo.List(ctx, 10000); err == nil {
+			stats.TotalConversations = int64(len(conversations))
+		}
+	}
+
+	// Get active users (within last 24 hours)
+	if s.analytics != nil && s.analytics.store != nil {
+		if activeUsers, err := s.analytics.store.GetActiveUsers(ctx, 1440); err == nil {
+			stats.ActiveUsers = activeUsers
+		}
+	}
+
+	// Get average response time (within last 24 hours)
+	if s.analytics != nil && s.analytics.store != nil {
+		if avgTime, err := s.analytics.store.GetAvgResponseTime(ctx, 24); err == nil {
+			stats.AvgResponseTime = avgTime
+		}
+	}
+
+	// Calculate trends (compare with yesterday)
+	if s.analytics != nil && s.analytics.store != nil {
+		if yesterday, err := s.analytics.store.GetDailyStats(ctx, 1); err == nil && yesterday != nil {
+			if yesterday.TotalDocuments > 0 {
+				stats.DocumentsTrend = calculatePercentChange(float64(yesterday.TotalDocuments), float64(stats.TotalDocuments))
+			}
+			if yesterday.TotalConversations > 0 {
+				stats.ConversationsTrend = calculatePercentChange(float64(yesterday.TotalConversations), float64(stats.TotalConversations))
+			}
+			if yesterday.ActiveUsers > 0 {
+				stats.ActiveUsersTrend = calculatePercentChange(float64(yesterday.ActiveUsers), float64(stats.ActiveUsers))
+			}
+			if yesterday.AvgResponseTime > 0 && stats.AvgResponseTime > 0 {
+				stats.ResponseTimeTrend = calculatePercentChange(yesterday.AvgResponseTime, stats.AvgResponseTime)
+			}
+		}
+	}
+
+	return stats, nil
+}
+
+func calculatePercentChange(oldValue, newValue float64) float64 {
+	if oldValue == 0 {
+		return 0
+	}
+	return ((newValue - oldValue) / oldValue) * 100
+}
+
 func (s *ChatbotService) FetchDocumentVector(ctx context.Context, id string, withPayload bool) (*rag.DocumentVector, error) {
 	return s.vectorStore.GetDocumentVector(ctx, id, withPayload)
 }
@@ -414,6 +471,36 @@ func (s *ChatbotService) RecordTokenUsage(conversationID string, tokens int) {
 	if s.convRepo != nil && conversationID != "" {
 		_ = s.convRepo.UpdateTokenUsage(context.Background(), conversationID, tokens)
 	}
+}
+
+func (s *ChatbotService) GenerateAndSetConversationTitle(ctx context.Context, conversationID, firstMessage string) {
+	if s.convRepo == nil || s.llm == nil || conversationID == "" || firstMessage == "" {
+		return
+	}
+
+	title, err := s.llm.GenerateConversationTitle(ctx, firstMessage)
+	if err != nil {
+		slog.Warn("대화 제목 생성 실패", "error", err, "conversationID", conversationID)
+		return
+	}
+
+	if err := s.convRepo.UpdateTitle(ctx, conversationID, title); err != nil {
+		slog.Warn("대화 제목 업데이트 실패", "error", err, "conversationID", conversationID)
+	}
+}
+
+func (s *ChatbotService) RecordSessionActivity(ctx context.Context, sessionID, conversationID string) {
+	if s.analytics == nil || s.analytics.store == nil {
+		return
+	}
+	_ = s.analytics.store.RecordSession(ctx, sessionID, conversationID)
+}
+
+func (s *ChatbotService) RecordResponseMetrics(ctx context.Context, conversationID string, responseTimeMs, tokenCount int) {
+	if s.analytics == nil || s.analytics.store == nil {
+		return
+	}
+	_ = s.analytics.store.RecordResponseTime(ctx, conversationID, responseTimeMs, tokenCount)
 }
 
 func (s *ChatbotService) ListConversationSummaries(ctx context.Context, limit int) ([]ConversationSummary, error) {

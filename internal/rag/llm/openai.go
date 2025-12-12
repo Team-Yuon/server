@@ -147,16 +147,52 @@ func (c *OpenAIClient) ClassifyCategory(ctx context.Context, content string) (st
 	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
 }
 
+// GenerateConversationTitle generates a short title (max 30 chars) for a conversation based on user message.
+func (c *OpenAIClient) GenerateConversationTitle(ctx context.Context, firstMessage string) (string, error) {
+	systemPrompt := `당신은 대화 제목 생성기입니다.
+- 사용자의 첫 메시지를 기반으로 30자 이내의 간결한 제목을 생성하세요.
+- 핵심 주제나 질문 내용을 요약하세요.
+- 추가 설명 없이 제목만 출력하세요.
+- 예시: "회원가입 방법", "비밀번호 재설정", "상품 배송 조회" 등`
+
+	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: c.config.Model,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
+			{Role: openai.ChatMessageRoleUser, Content: firstMessage},
+		},
+		MaxTokens:   32,
+		Temperature: 0.3,
+	})
+	if err != nil {
+		return "", fmt.Errorf("제목 생성 실패: %w", err)
+	}
+
+	if len(resp.Choices) == 0 {
+		return "", fmt.Errorf("제목 생성 응답이 비어있습니다")
+	}
+
+	title := strings.TrimSpace(resp.Choices[0].Message.Content)
+	// Remove quotes if present
+	title = strings.Trim(title, `"'`)
+	return title, nil
+}
+
 // ExtractKeywords returns a small set of comma-separated keywords using the LLM.
 func (c *OpenAIClient) ExtractKeywords(ctx context.Context, text string, maxKeywords int) ([]string, error) {
 	if maxKeywords <= 0 {
 		maxKeywords = 8
 	}
 
-	systemPrompt := fmt.Sprintf(`당신은 키워드 추출기입니다.
-- 입력 문장에서 의미 있는 핵심 키워드 %d개 이내를 쉼표로 구분해 출력하세요.
-- 조사/어미/구두점은 제거하고 명사/핵심 구만 남기세요.
-- 추가 설명 없이 키워드만 출력하세요.`, maxKeywords)
+	systemPrompt := fmt.Sprintf(`당신은 키워드 추출 전문가입니다.
+- 입력 문장에서 유의미한 핵심 키워드 %d개 이내를 쉼표로 구분해 출력하세요.
+- 다음 조건을 반드시 지켜주세요:
+  1. 일반적인 단어(안녕, 감사, 질문, 답변 등)는 제외
+  2. 고유명사, 전문용어, 구체적인 주제어만 추출
+  3. 조사/어미/구두점은 제거하고 명사/핵심 구만 남기세요
+  4. 사람 이름은 제외하세요
+- 추가 설명 없이 키워드만 출력하세요.
+- 유의미한 키워드가 없으면 빈 문자열을 반환하세요.`, maxKeywords)
 
 	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: c.config.Model,

@@ -46,9 +46,9 @@ func newAnalyticsTracker(llmClient *llm.OpenAIClient, store AnalyticsStore) *ana
 }
 
 func (a *analyticsTracker) Record(ctx context.Context, message string, docs []rag.Document) {
-	tokens := tokenize(message)
+	var tokens []string
 
-	// LLM 기반 키워드 추출 시도 (실패 시 기존 토큰화 유지)
+	// LLM 기반 키워드 추출만 사용
 	if a.llm != nil {
 		if llmKeywords, err := a.llm.ExtractKeywords(ctx, message, 8); err == nil && len(llmKeywords) > 0 {
 			tokens = llmKeywords
@@ -126,40 +126,6 @@ func topN(m map[string]int, n int) []keywordStat {
 	return items
 }
 
-func tokenize(message string) []string {
-	cleaned := strings.ToLower(message)
-	cleaned = strings.ReplaceAll(cleaned, "\n", " ")
-	cleaned = strings.ReplaceAll(cleaned, "\t", " ")
-
-	fields := strings.FieldsFunc(cleaned, func(r rune) bool {
-		if r >= 'a' && r <= 'z' {
-			return false
-		}
-		if r >= '0' && r <= '9' {
-			return false
-		}
-		if r >= '\uac00' && r <= '\ud7a3' {
-			return false
-		}
-		return true
-	})
-
-	stopwords := map[string]struct{}{
-		"the": {}, "and": {}, "that": {}, "with": {}, "this": {}, "이다": {}, "합니다": {}, "그리고": {}, "하지만": {}, "것": {}, "에서": {}, "있습니다": {}, "please": {}, "request": {}, "need": {}, "give": {},
-	}
-
-	var tokens []string
-	for _, w := range fields {
-		if len(w) < 2 {
-			continue
-		}
-		if _, ok := stopwords[w]; ok {
-			continue
-		}
-		tokens = append(tokens, w)
-	}
-	return tokens
-}
 
 func (a *analyticsTracker) StatsJSON() string {
 	stats := a.Snapshot()

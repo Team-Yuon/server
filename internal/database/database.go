@@ -78,6 +78,34 @@ func EnsureSchemas(db *sql.DB) error {
 			hour_key TEXT PRIMARY KEY,
 			count BIGINT NOT NULL DEFAULT 0
 		);`,
+		// Active sessions tracking
+		`CREATE TABLE IF NOT EXISTS active_sessions (
+			session_id TEXT PRIMARY KEY,
+			user_id TEXT,
+			conversation_id TEXT,
+			last_activity TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON active_sessions(last_activity);`,
+		// Response time metrics
+		`CREATE TABLE IF NOT EXISTS response_metrics (
+			id BIGSERIAL PRIMARY KEY,
+			conversation_id TEXT,
+			response_time_ms INTEGER NOT NULL,
+			token_count INTEGER,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_metrics_created_at ON response_metrics(created_at);`,
+		// Daily stats snapshot
+		`CREATE TABLE IF NOT EXISTS daily_stats (
+			date DATE PRIMARY KEY,
+			total_documents BIGINT NOT NULL DEFAULT 0,
+			total_conversations BIGINT NOT NULL DEFAULT 0,
+			total_messages BIGINT NOT NULL DEFAULT 0,
+			active_users BIGINT NOT NULL DEFAULT 0,
+			avg_response_time REAL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);`,
 	}
 
 	for _, stmt := range statements {

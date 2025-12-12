@@ -214,6 +214,7 @@ func (h *WebSocketHandler) handleAppendMessage(conn *websocket.Conn, payload jso
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
+	startTime := time.Now()
 	resp, err := h.service.Chat(ctx, &rag.ChatRequest{
 		Message:         req.Message,
 		ConversationID:  req.ConversationID,
@@ -222,6 +223,8 @@ func (h *WebSocketHandler) handleAppendMessage(conn *websocket.Conn, payload jso
 		TopK:            req.TopK,
 		History:         existingHistory,
 	})
+	responseTime := time.Since(startTime)
+
 	if err != nil {
 		slog.Error("웹소켓 챗 처리 실패", "error", err)
 		h.sendError(conn, "응답 생성에 실패했습니다")
@@ -232,6 +235,11 @@ func (h *WebSocketHandler) handleAppendMessage(conn *websocket.Conn, payload jso
 		Role:    "user",
 		Content: req.Message,
 	})
+
+	// Generate conversation title from first user message
+	if len(existingHistory) == 0 {
+		go h.service.GenerateAndSetConversationTitle(context.Background(), req.ConversationID, req.Message)
+	}
 
 	chunks := splitString(resp.Answer, 200)
 	for idx, chunk := range chunks {
@@ -261,6 +269,10 @@ func (h *WebSocketHandler) handleAppendMessage(conn *websocket.Conn, payload jso
 		Content: resp.Answer,
 	})
 	h.service.RecordTokenUsage(req.ConversationID, resp.TokensUsed)
+
+	// Record session activity and response time
+	h.service.RecordSessionActivity(context.Background(), req.ConversationID, req.ConversationID)
+	h.service.RecordResponseMetrics(context.Background(), req.ConversationID, int(responseTime.Milliseconds()), resp.TokensUsed)
 }
 
 func (h *WebSocketHandler) sendError(conn *websocket.Conn, msg string) {

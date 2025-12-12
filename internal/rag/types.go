@@ -51,6 +51,18 @@ type DocumentStats struct {
 	LastUpdatedAt  string `json:"lastUpdatedAt,omitempty"`
 }
 
+type DashboardStats struct {
+	TotalDocuments     int64   `json:"total_documents"`
+	TotalConversations int64   `json:"total_conversations"`
+	ActiveUsers        int64   `json:"active_users"`
+	AvgResponseTime    float64 `json:"avg_response_time,omitempty"`
+	// Trends (compared to previous period)
+	DocumentsTrend     float64 `json:"documents_trend,omitempty"`
+	ConversationsTrend float64 `json:"conversations_trend,omitempty"`
+	ActiveUsersTrend   float64 `json:"active_users_trend,omitempty"`
+	ResponseTimeTrend  float64 `json:"response_time_trend,omitempty"`
+}
+
 type ReindexRequest struct {
 	DocumentIDs []string `json:"documentIds"`
 }
