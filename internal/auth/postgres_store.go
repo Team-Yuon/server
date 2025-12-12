@@ -12,6 +12,7 @@ type UserStore interface {
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByID(ctx context.Context, id string) (*User, error)
 	List(ctx context.Context) ([]*User, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type PostgresUserStore struct {
@@ -83,4 +84,22 @@ func (s *PostgresUserStore) List(ctx context.Context) ([]*User, error) {
 		users = append(users, &u)
 	}
 	return users, nil
+}
+
+func (s *PostgresUserStore) Delete(ctx context.Context, id string) error {
+	result, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete user failed: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
 }

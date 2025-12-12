@@ -87,6 +87,8 @@ func (r *Router) SetupRoutes() {
 		userGroup.Use(authMiddleware(r.authManager))
 		{
 			userGroup.GET("", userHandler.List)
+			userGroup.POST("", userHandler.Create)
+			userGroup.DELETE("/:id", userHandler.Delete)
 		}
 
 		// Conversations
@@ -96,6 +98,7 @@ func (r *Router) SetupRoutes() {
 		{
 			convGroup.GET("", conversationHandler.List)
 			convGroup.GET("/:id", conversationHandler.Detail)
+			convGroup.DELETE("/:id", conversationHandler.Delete)
 		}
 
 		documents := NewDocumentHandler(r.chatbotService, r.storage)

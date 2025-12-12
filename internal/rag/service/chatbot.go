@@ -517,6 +517,13 @@ func (s *ChatbotService) GetConversationMessages(ctx context.Context, id string)
 	return s.convRepo.Messages(ctx, id)
 }
 
+func (s *ChatbotService) DeleteConversation(ctx context.Context, id string) error {
+	if s.convRepo == nil {
+		return fmt.Errorf("conversation store not configured")
+	}
+	return s.convRepo.Delete(ctx, id)
+}
+
 func (s *ChatbotService) enrichDocumentMetadata(ctx context.Context, doc *rag.Document) {
 	if doc.Metadata == nil {
 		doc.Metadata = make(map[string]interface{})

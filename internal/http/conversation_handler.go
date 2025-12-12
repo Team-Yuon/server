@@ -67,3 +67,25 @@ func (h *ConversationHandler) Detail(c *gin.Context) {
 		"messages": resp,
 	})
 }
+
+func (h *ConversationHandler) Delete(c *gin.Context) {
+	if h.service == nil {
+		InternalServerErrorResponse(c, "대화 서비스가 구성되지 않았습니다")
+		return
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		BadRequestResponse(c, "대화 ID가 필요합니다")
+		return
+	}
+
+	if err := h.service.DeleteConversation(c.Request.Context(), id); err != nil {
+		InternalServerErrorResponse(c, err.Error())
+		return
+	}
+
+	SuccessResponse(c, gin.H{
+		"message": "대화가 삭제되었습니다",
+	})
+}

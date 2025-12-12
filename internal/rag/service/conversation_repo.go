@@ -29,6 +29,7 @@ type ConversationRepository interface {
 	UpdateTitle(ctx context.Context, id, title string) error
 	List(ctx context.Context, limit int) ([]ConversationSummary, error)
 	Messages(ctx context.Context, id string) ([]ConversationMessage, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type PostgresConversationStore struct {
@@ -162,4 +163,29 @@ func (s *PostgresConversationStore) Messages(ctx context.Context, id string) ([]
 		msgs = append(msgs, msg)
 	}
 	return msgs, nil
+}
+
+func (s *PostgresConversationStore) Delete(ctx context.Context, id string) error {
+	// Delete messages first (foreign key constraint)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM conversation_messages WHERE conversation_id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete conversation messages failed: %w", err)
+	}
+
+	// Delete conversation
+	result, err := s.db.ExecContext(ctx, `DELETE FROM conversations WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete conversation failed: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("conversation not found")
+	}
+
+	return nil
 }

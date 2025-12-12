@@ -25,6 +25,17 @@ type userResponse struct {
 	CreatedAt  string `json:"createdAt"`
 }
 
+type createUserRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
+	Role     string `json:"role"`
+}
+
+type updateUserRequest struct {
+	Email string `json:"email,omitempty" binding:"omitempty,email"`
+	Role  string `json:"role,omitempty"`
+}
+
 // List returns users from the auth manager (in-memory) with basic metadata.
 func (h *UserHandler) List(c *gin.Context) {
 	if h.manager == nil {
@@ -53,5 +64,43 @@ func (h *UserHandler) List(c *gin.Context) {
 
 	SuccessResponse(c, gin.H{
 		"users": resp,
+	})
+}
+
+func (h *UserHandler) Create(c *gin.Context) {
+	var req createUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequestResponse(c, "잘못된 요청입니다")
+		return
+	}
+
+	_, user, err := h.manager.Signup(req.Email, req.Password, req.Role)
+	if err != nil {
+		InternalServerErrorResponse(c, err.Error())
+		return
+	}
+
+	SuccessResponse(c, gin.H{
+		"id":      user.ID,
+		"email":   user.Email,
+		"role":    user.Role,
+		"message": "사용자가 생성되었습니다",
+	})
+}
+
+func (h *UserHandler) Delete(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		BadRequestResponse(c, "사용자 ID가 필요합니다")
+		return
+	}
+
+	if err := h.manager.DeleteUser(id); err != nil {
+		InternalServerErrorResponse(c, err.Error())
+		return
+	}
+
+	SuccessResponse(c, gin.H{
+		"message": "사용자가 삭제되었습니다",
 	})
 }

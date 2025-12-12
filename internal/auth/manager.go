@@ -152,6 +152,14 @@ func (m *Manager) AllUsers() []*User {
 	return users
 }
 
+// DeleteUser deletes a user by ID.
+func (m *Manager) DeleteUser(id string) error {
+	if m.store == nil {
+		return errors.New("user store is not configured")
+	}
+	return m.store.Delete(context.Background(), id)
+}
+
 type Claims struct {
 	jwt.RegisteredClaims
 	Email string `json:"email"`
