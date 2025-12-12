@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	convertapi "github.com/ConvertAPI/convertapi-go/pkg"
+	"github.com/ConvertAPI/convertapi-go/pkg/config"
+	"github.com/ConvertAPI/convertapi-go/pkg/param"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
@@ -63,6 +66,11 @@ func extractPDF(data []byte) (string, error) {
 		return "", fmt.Errorf("pdf temp file close failed: %w", err)
 	}
 
+	// 1) ConvertAPI 우선 시도
+	if text, err := extractPDFViaConvertAPI(tmpPDF.Name()); err == nil && text != "" {
+		return text, nil
+	}
+
 	// Create temporary output directory
 	tmpDir, err := os.MkdirTemp("", "pdf-extract-*")
 	if err != nil {
@@ -70,9 +78,9 @@ func extractPDF(data []byte) (string, error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Extract text using pdfcpu (text-focused extractor)
+	// Extract text using pdfcpu content extractor (text content only)
 	conf := model.NewDefaultConfiguration()
-	err = api.ExtractTextFile(tmpPDF.Name(), tmpDir, nil, conf)
+	err = api.ExtractContentFile(tmpPDF.Name(), tmpDir, nil, conf)
 	if err != nil {
 		return "", fmt.Errorf("pdf text extraction failed: %w", err)
 	}
@@ -100,6 +108,41 @@ func extractPDF(data []byte) (string, error) {
 	text := strings.TrimSpace(builder.String())
 	if text == "" {
 		return "", fmt.Errorf("pdf has no extractable text")
+	}
+	return text, nil
+}
+
+// extractPDFViaConvertAPI uses ConvertAPI (requires CONVERTAPI_SECRET) to convert PDF to TXT.
+func extractPDFViaConvertAPI(path string) (string, error) {
+	secret := os.Getenv("CONVERTAPI_SECRET")
+	if secret == "" {
+		return "", fmt.Errorf("CONVERTAPI_SECRET is not set")
+	}
+
+	conf := config.NewDefault(secret)
+	config.Default = conf
+
+	params := []param.IParam{
+		param.NewPath("File", path, conf),
+	}
+
+	result := convertapi.Convert("pdf", "txt", params, conf)
+	files, err := result.Files()
+	if err != nil {
+		return "", fmt.Errorf("convertapi convert failed: %w", err)
+	}
+	if len(files) == 0 {
+		return "", fmt.Errorf("convertapi returned no files")
+	}
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, files[0]); err != nil {
+		return "", fmt.Errorf("convertapi read failed: %w", err)
+	}
+
+	text := strings.TrimSpace(buf.String())
+	if text == "" {
+		return "", fmt.Errorf("convertapi returned empty text")
 	}
 	return text, nil
 }

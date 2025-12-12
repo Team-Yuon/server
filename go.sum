@@ -1,3 +1,5 @@
+github.com/ConvertAPI/convertapi-go v0.0.0-20250603083246-b586aa6ba8a2 h1:2kS+Wh/CLSX8M+DSkryNi6W/LCIL7mxeFTRJp+irXAs=
+github.com/ConvertAPI/convertapi-go v0.0.0-20250603083246-b586aa6ba8a2/go.mod h1:8WJm4JnbsPVREles35n100Rl7iaxtQTJtVazA98kRoE=
 github.com/aws/aws-sdk-go v1.44.263/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
 github.com/aws/aws-sdk-go-v2 v1.18.0/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
 github.com/aws/aws-sdk-go-v2 v1.30.5 h1:mWSRTwQAb0aLE17dSzztCVJWI9+cRMgqebndjwDyK0g=

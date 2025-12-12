@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"yuon/internal/rag"
 )
 
 type AnalyticsStore interface {
