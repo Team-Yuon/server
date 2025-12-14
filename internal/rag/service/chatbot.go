@@ -466,6 +466,64 @@ func (s *ChatbotService) FetchDocumentVector(ctx context.Context, id string, wit
 }
 
 func (s *ChatbotService) QueryDocumentVectors(ctx context.Context, req *rag.VectorQueryRequest) (*rag.VectorQueryResponse, error) {
+	// If DocumentIDs provided, perform similarity search based on those documents
+	if len(req.DocumentIDs) > 0 {
+		// Get the first document's vector for similarity search
+		docID := req.DocumentIDs[0]
+
+		// Fetch the document's vector from Qdrant
+		vectors, _, _, err := s.vectorStore.QueryDocumentVectors(ctx, []string{docID}, 1, true, "")
+		if err != nil {
+			return nil, fmt.Errorf("문서 벡터 조회 실패: %w", err)
+		}
+
+		if len(vectors) == 0 {
+			return &rag.VectorQueryResponse{
+				Vectors:    []rag.DocumentVector{},
+				Count:      0,
+				HasMore:    false,
+				NextOffset: "",
+			}, nil
+		}
+
+		// Use the vector to find similar documents
+		limit := req.Limit
+		if limit == 0 {
+			limit = 5
+		}
+
+		similarDocs, err := s.vectorStore.Search(ctx, vectors[0].Vector, limit+1) // +1 to account for self
+		if err != nil {
+			return nil, fmt.Errorf("유사 문서 검색 실패: %w", err)
+		}
+
+		// Convert to DocumentVector format
+		resultVectors := make([]rag.DocumentVector, 0, len(similarDocs))
+		for _, doc := range similarDocs {
+			// Add score to metadata
+			metadata := doc.Metadata
+			if metadata == nil {
+				metadata = make(map[string]interface{})
+			}
+			metadata["score"] = doc.Score
+
+			resultVectors = append(resultVectors, rag.DocumentVector{
+				ID:       doc.ID,
+				Vector:   nil, // Don't return full vector to save bandwidth
+				Content:  doc.Content,
+				Metadata: metadata,
+			})
+		}
+
+		return &rag.VectorQueryResponse{
+			Vectors:    resultVectors,
+			Count:      len(resultVectors),
+			HasMore:    false,
+			NextOffset: "",
+		}, nil
+	}
+
+	// If no DocumentIDs, return all vectors (original behavior)
 	vectors, hasMore, nextOffset, err := s.vectorStore.QueryDocumentVectors(ctx, req.DocumentIDs, req.Limit, req.WithPayload, req.Offset)
 	if err != nil {
 		return nil, err
