@@ -338,17 +338,60 @@ func (s *ChatbotService) ReindexDocuments(ctx context.Context, ids []string) (*r
 			continue
 		}
 
-		vector, err := s.llm.GenerateEmbedding(ctx, doc.Content)
-		if err != nil {
-			slog.Error("임베딩 생성 실패", "id", doc.ID, "error", err)
+		// Enrich metadata (category classification, etc.)
+		s.enrichDocumentMetadata(ctx, &doc)
+
+		// Update OpenSearch
+		if err := s.fullText.AddDocument(ctx, doc); err != nil {
+			slog.Error("OpenSearch 재색인 실패", "id", doc.ID, "error", err)
 			result.Failed = append(result.Failed, doc.ID)
 			continue
 		}
 
-		if err := s.vectorStore.AddDocument(ctx, doc, vector); err != nil {
-			slog.Error("Qdrant 재색인 실패", "id", doc.ID, "error", err)
-			result.Failed = append(result.Failed, doc.ID)
-			continue
+		// Handle chunking for large documents (same as AddDocument)
+		chunks := s.splitTextIntoChunks(doc.Content, 6000)
+
+		if len(chunks) == 1 {
+			// Single chunk: direct embedding
+			vector, err := s.llm.GenerateEmbedding(ctx, doc.Content)
+			if err != nil {
+				slog.Error("임베딩 생성 실패", "id", doc.ID, "error", err)
+				result.Failed = append(result.Failed, doc.ID)
+				continue
+			}
+
+			if err := s.vectorStore.AddDocument(ctx, doc, vector); err != nil {
+				slog.Error("Qdrant 재색인 실패", "id", doc.ID, "error", err)
+				result.Failed = append(result.Failed, doc.ID)
+				continue
+			}
+		} else {
+			// Multiple chunks: generate embeddings and average
+			slog.Info("재색인 중 문서 청크 분할", "id", doc.ID, "chunks", len(chunks))
+
+			vectors := make([][]float32, len(chunks))
+			for i, chunk := range chunks {
+				vector, err := s.llm.GenerateEmbedding(ctx, chunk)
+				if err != nil {
+					slog.Error("청크 임베딩 생성 실패", "id", doc.ID, "chunk", i, "error", err)
+					result.Failed = append(result.Failed, doc.ID)
+					continue
+				}
+				vectors[i] = vector
+			}
+
+			// Skip if any chunk failed
+			if len(vectors) != len(chunks) {
+				continue
+			}
+
+			// Average vectors
+			avgVector := s.averageVectors(vectors)
+			if err := s.vectorStore.AddDocument(ctx, doc, avgVector); err != nil {
+				slog.Error("Qdrant 재색인 실패 (평균 벡터)", "id", doc.ID, "error", err)
+				result.Failed = append(result.Failed, doc.ID)
+				continue
+			}
 		}
 
 		result.Reindexed++
